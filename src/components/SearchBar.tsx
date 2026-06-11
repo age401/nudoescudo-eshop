@@ -29,16 +29,19 @@ export function SearchBar({ variant }: { variant: "header" | "hero" }) {
   const [active, setActive] = useState(-1);
   const [loading, setLoading] = useState(false);
 
-  // Debounced fetch; ignores out-of-order responses.
+  // Debounced fetch; ignores out-of-order responses. All state updates happen
+  // asynchronously (inside the timer) to avoid render cascades.
   useEffect(() => {
     const q = query.trim();
-    if (q.length < 2) {
-      setResults([]);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
     const ctrl = new AbortController();
+    if (q.length < 2) {
+      const t = setTimeout(() => {
+        setResults([]);
+        setLoading(false);
+      }, 0);
+      return () => clearTimeout(t);
+    }
+    const tl = setTimeout(() => setLoading(true), 0);
     const t = setTimeout(async () => {
       try {
         const res = await fetch(`/api/suggest?q=${encodeURIComponent(q)}`, {
@@ -58,6 +61,7 @@ export function SearchBar({ variant }: { variant: "header" | "hero" }) {
     }, 180);
     return () => {
       ctrl.abort();
+      clearTimeout(tl);
       clearTimeout(t);
     };
   }, [query]);

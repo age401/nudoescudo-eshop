@@ -32,13 +32,17 @@ async function main() {
     "../src/jobs/mtgjson-prices"
   );
   const { syncScryfallCatalog } = await import("../src/jobs/scryfall-catalog");
+  const { syncPokemonCatalog } = await import("../src/jobs/pokemon-catalog");
+  const { syncPokemonPrices } = await import("../src/jobs/pokemon-prices");
   const { getSetting } = await import("../src/lib/settings");
 
   cron.schedule("*/15 * * * *", () => safely("order_expiry", expireStaleOrders));
   cron.schedule("10 7 * * *", () => safely("fx_rate", syncFxRate));
   cron.schedule("30 7 * * *", () => safely("ck_prices", syncCardKingdomPrices));
+  cron.schedule("50 7 * * *", () => safely("pokemon_prices", syncPokemonPrices));
   cron.schedule("0 5 * * 0", () => safely("mtgjson_identifiers", syncMtgjsonIdentifiers));
   cron.schedule("0 6 * * 0", () => safely("scryfall_catalog", () => syncScryfallCatalog()));
+  cron.schedule("0 8 * * 0", () => safely("pokemon_catalog", syncPokemonCatalog));
 
   console.log("[worker] schedules registered");
 

@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NudoEscudo eShop
 
-## Getting Started
+Tienda online de cartas sueltas (Magic: The Gathering y Pokémon) con pedidos
+por email (sin pago online), pensada para una tienda física en Uruguay.
 
-First, run the development server:
+- **Catálogo MTG**: Scryfall (bulk data, actualización semanal automática).
+- **Precios MTG**: Card Kingdom, vía los archivos diarios de MTGJSON.
+- **Catálogo Pokémon**: TCGdex. **Precios Pokémon**: TCGplayer (vía TCGdex).
+- **Moneda**: US$ con conversión diaria a $U (pesos uruguayos).
+- **Stock**: importación del CSV de Delver Lens (con Scryfall ID) + carga manual.
+- **Pedidos**: el cliente confirma por enlace de email; el stock queda reservado
+  y se libera solo si no confirma. Panel de administración en `/admin`.
+
+## Desarrollo local (Windows/Mac/Linux, sin Docker)
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run db:dev        # PostgreSQL embebido (terminal aparte, dejar corriendo)
+npm run mail:dev      # Mailpit: emails de prueba en http://localhost:8025
+npm run db:migrate    # migraciones
+npm run db:seed       # juegos + configuración inicial
+npm run dev           # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Variables: copiar `.env.example` a `.env` (los valores por defecto sirven para
+desarrollo).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Datos de prueba
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run sync -- catalog --sets=fdn,dsk,blb   # catálogo MTG (3 sets)
+npm run sync -- prices                       # precios Card Kingdom
+npm run sync -- fx                           # tipo de cambio
+npm run sync -- pokemon-catalog              # catálogo Pokémon completo
+npx tsx scripts/make-test-csv.ts             # genera .local/test-delver.csv
+npm run import:delver -- .local/test-delver.csv --replace
+```
 
-## Learn More
+### Tests
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm test    # requiere la base de desarrollo corriendo
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Producción (VPS con Docker)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+cp .env.example .env   # completar: POSTGRES_PASSWORD, SITE_URL, APP_SECRET,
+                       # ADMIN_PASSWORD, EMAIL_MODE=resend, RESEND_API_KEY,
+                       # EMAIL_FROM, ADMIN_EMAIL
+docker compose up -d --build
+```
 
-## Deploy on Vercel
+- `app` publica en `127.0.0.1:3000`; el reverse proxy del servidor (nginx/caddy)
+  termina TLS para el subdominio y hace proxy a ese puerto.
+- `worker` ejecuta los trabajos programados (precios, catálogos, tipo de cambio,
+  expiración de pedidos). `backup` hace `pg_dump` diario a `./backups`.
+- Migraciones y seed corren automáticamente al iniciar `app`.
+- Primera vez: `docker compose exec app npm run sync -- catalog` (y `prices`,
+  `fx`, `pokemon-catalog`) o usar los botones de "Ejecutar ahora" en `/admin`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Estructura
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `src/app` — storefront + panel admin (App Router, server components).
+- `src/lib` — lógica de negocio (pedidos, precios, importaciones, email).
+- `src/jobs` — sincronizaciones programadas.
+- `scripts/` — CLI: migraciones, seed, sync, importación Delver, worker.
+- `drizzle/` — migraciones SQL generadas (drizzle-kit).
+
+Las guías de operación en español para la tienda están en `docs/`.

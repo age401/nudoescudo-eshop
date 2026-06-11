@@ -42,8 +42,20 @@ async function main() {
       console.log(await expireStaleOrders());
       break;
     }
+    case "pokemon-catalog": {
+      const { syncPokemonCatalog } = await import("../src/jobs/pokemon-catalog");
+      console.log(await syncPokemonCatalog());
+      break;
+    }
+    case "pokemon-prices": {
+      const { syncPokemonPrices } = await import("../src/jobs/pokemon-prices");
+      console.log(await syncPokemonPrices());
+      break;
+    }
     default:
-      console.error("Usage: npm run sync -- <catalog|identifiers|prices|fx|expiry> [--sets=a,b]");
+      console.error(
+        "Usage: npm run sync -- <catalog|identifiers|prices|fx|expiry|pokemon-catalog|pokemon-prices> [--sets=a,b]",
+      );
       process.exitCode = 1;
       return;
   }

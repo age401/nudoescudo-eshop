@@ -9,6 +9,7 @@ const FINISH_ES: Record<string, string> = {
   nonfoil: "Normal",
   foil: "Foil",
   etched: "Foil grabado",
+  reverse: "Reverse Holo",
 };
 
 function esc(s: string): string {

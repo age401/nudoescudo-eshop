@@ -1,6 +1,8 @@
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { sql } from "drizzle-orm";
 import { eq } from "drizzle-orm";
+import { AddStockForm } from "@/components/AddStockForm";
 import { db } from "@/db";
 import { stock } from "@/db/schema";
 import { requireAdmin } from "@/lib/admin-auth";
@@ -14,19 +16,17 @@ import { computeUnitPriceUsd } from "@/lib/pricing";
 export const dynamic = "force-dynamic";
 export const metadata = { title: `${M.admin.stock.title} — ${M.storeName}` };
 
+// Import feedback travels via query params through the post-action redirect.
 type ImportFeedback =
   | { kind: "preview"; matched: number; unmatched: number; names: string[] }
   | { kind: "done"; imported: number; unmatched: number }
   | { kind: "error"; message: string }
   | null;
 
-// Module-level feedback survives the redirect-free form roundtrip in this
-// single-process server. Good enough for a one-admin tool.
-let lastImportFeedback: ImportFeedback = null;
-
 async function importAction(formData: FormData) {
   "use server";
   await requireAdmin();
+  const params = new URLSearchParams();
   try {
     const file = formData.get("file") as File | null;
     if (!file || file.size === 0) throw new Error("Subí un archivo CSV.");
@@ -34,27 +34,25 @@ async function importAction(formData: FormData) {
     const mode = formData.get("mode") === "replace" ? "replace" : "merge";
     if (formData.get("action") === "preview") {
       const p = await previewDelverImport(text);
-      lastImportFeedback = {
-        kind: "preview",
-        matched: p.matched.length,
-        unmatched: p.unmatched.length,
-        names: p.unmatched.slice(0, 10).map((u) => u.name ?? u.scryfallId),
-      };
+      params.set("fb", "preview");
+      params.set("m", String(p.matched.length));
+      params.set("u", String(p.unmatched.length));
+      params.set(
+        "names",
+        p.unmatched.slice(0, 8).map((x) => x.name ?? x.scryfallId).join("|"),
+      );
     } else {
       const r = await applyDelverImport(text, mode);
-      lastImportFeedback = {
-        kind: "done",
-        imported: r.imported,
-        unmatched: r.unmatched,
-      };
+      params.set("fb", "done");
+      params.set("m", String(r.imported));
+      params.set("u", String(r.unmatched));
     }
   } catch (err) {
-    lastImportFeedback = {
-      kind: "error",
-      message: err instanceof Error ? err.message : String(err),
-    };
+    params.set("fb", "error");
+    params.set("msg", err instanceof Error ? err.message : String(err));
   }
   revalidatePath("/admin/stock");
+  redirect(`/admin/stock?${params.toString()}`);
 }
 
 async function updateStockAction(formData: FormData) {
@@ -81,11 +79,32 @@ async function updateStockAction(formData: FormData) {
 export default async function AdminStockPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    fb?: string;
+    m?: string;
+    u?: string;
+    names?: string;
+    msg?: string;
+  }>;
 }) {
-  const { q } = await searchParams;
+  const { q, fb, m, u, names, msg } = await searchParams;
   const S = M.admin.stock;
   const { multiplier } = await getPricingContext();
+
+  const feedback: ImportFeedback =
+    fb === "preview"
+      ? {
+          kind: "preview",
+          matched: Number(m) || 0,
+          unmatched: Number(u) || 0,
+          names: names ? names.split("|").filter(Boolean) : [],
+        }
+      : fb === "done"
+        ? { kind: "done", imported: Number(m) || 0, unmatched: Number(u) || 0 }
+        : fb === "error"
+          ? { kind: "error", message: msg ?? "Error" }
+          : null;
 
   const filter = q ? `%${normalizeName(q)}%` : null;
   const rows = (
@@ -103,9 +122,6 @@ export default async function AdminStockPage({
       limit 500
     `)
   ).rows as Record<string, unknown>[];
-
-  const feedback = lastImportFeedback;
-  lastImportFeedback = null;
 
   return (
     <div>
@@ -178,6 +194,8 @@ export default async function AdminStockPage({
         </form>
         <p className="mt-2 text-xs text-ink-faint">{S.import.replaceWarning}</p>
       </div>
+
+      <AddStockForm />
 
       {/* Stock table */}
       <div className="mt-8 flex items-center justify-between">

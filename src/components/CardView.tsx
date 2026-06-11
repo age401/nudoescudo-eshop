@@ -6,11 +6,12 @@ import type { CardDetail, PrintingDetail, StockEntry } from "@/lib/catalog";
 import { M } from "@/lib/messages";
 import { computeUnitPriceUsd, formatUsd, formatUyu, usdToUyu } from "@/lib/pricing";
 
-const FINISH_ORDER = ["nonfoil", "foil", "etched"];
+const FINISH_ORDER = ["nonfoil", "reverse", "foil", "etched"];
 
 function finishLabel(f: string): string {
   if (f === "nonfoil") return M.card.nonfoil;
   if (f === "foil") return M.card.foil;
+  if (f === "reverse") return M.card.reverse;
   return M.card.etched;
 }
 
@@ -178,7 +179,9 @@ export function CardView({
             </p>
           )}
           {hasStock && (
-            <p className="mt-1 text-xs text-ink-faint">{M.card.priceReference}</p>
+            <p className="mt-1 text-xs text-ink-faint">
+              {M.card.priceSources[card.gameId] ?? M.card.priceReference}
+            </p>
           )}
         </div>
 

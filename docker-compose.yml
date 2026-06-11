@@ -22,6 +22,7 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/nudoescudo
+      TZ: America/Montevideo
     # Apply migrations + reference seed on every boot (both are idempotent).
     command: sh -c "npm run db:migrate && npm run db:seed && npm start"
     depends_on:
@@ -38,7 +39,11 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/nudoescudo
+      TZ: America/Montevideo
+      CACHE_DIR: /cache
     command: npm run worker
+    volumes:
+      - workercache:/cache
     depends_on:
       db:
         condition: service_healthy
@@ -64,3 +69,4 @@ services:
 
 volumes:
   pgdata:
+  workercache:

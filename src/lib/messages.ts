@@ -20,6 +20,11 @@ export const M = {
     nonfoil: "Normal",
     foil: "Foil",
     etched: "Foil grabado",
+    reverse: "Reverse Holo",
+    priceSources: {
+      mtg: "Precio de referencia: Card Kingdom",
+      pokemon: "Precio de referencia: TCGplayer",
+    } as Record<string, string>,
     condition: "Estado",
     language: "Idioma",
     quantity: "Cantidad",
@@ -114,7 +119,7 @@ export const M = {
 
   footer: {
     pricesNote:
-      "Precios de referencia de Card Kingdom. El total en pesos es aproximado (tipo de cambio del día).",
+      "Precios de referencia de Card Kingdom (Magic) y TCGplayer (Pokémon). El total en pesos es aproximado (tipo de cambio del día).",
   },
 
   admin: {
