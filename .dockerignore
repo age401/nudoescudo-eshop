@@ -1,0 +1,8 @@
+node_modules
+.next
+.git
+.local
+backups
+*.md
+.env*
+!.env.example
