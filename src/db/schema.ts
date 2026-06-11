@@ -79,6 +79,15 @@ export const printings = pgTable(
   (t) => [index("printings_card_idx").on(t.cardId)],
 );
 
+/**
+ * MTGJSON uuid → Scryfall id mapping, refreshed from AllIdentifiers weekly.
+ * Lets the nightly price sync join MTGJSON prices onto printings cheaply.
+ */
+export const mtgjsonMap = pgTable("mtgjson_map", {
+  uuid: text("uuid").primaryKey(),
+  scryfallId: text("scryfall_id").notNull(),
+});
+
 export const priceSourceEnum = pgEnum("price_source", [
   "cardkingdom",
   "tcgplayer",

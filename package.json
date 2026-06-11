@@ -13,7 +13,9 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
     "test": "vitest run",
-    "worker": "tsx scripts/worker.ts"
+    "worker": "tsx scripts/worker.ts",
+    "sync": "tsx scripts/sync.ts",
+    "import:delver": "tsx scripts/import-delver.ts"
   },
   "dependencies": {
     "csv-parse": "^6.2.1",
@@ -24,7 +26,8 @@
     "pg": "^8.21.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "stream-json": "^3.4.0",
+    "stream-chain": "^2.2.5",
+    "stream-json": "^1.9.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -34,6 +37,8 @@
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/stream-chain": "^2.1.0",
+    "@types/stream-json": "^1.7.8",
     "drizzle-kit": "^0.31.10",
     "embedded-postgres": "^18.4.0-beta.17",
     "eslint": "^9",

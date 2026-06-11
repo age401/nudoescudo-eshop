@@ -15,6 +15,13 @@
       "when": 1781146065976,
       "tag": "0001_trgm_search",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781146313042,
+      "tag": "0002_certain_tattoo",
+      "breakpoints": true
     }
   ]
 }
