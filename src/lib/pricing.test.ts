@@ -31,6 +31,61 @@ describe("computeUnitPriceUsd", () => {
       computeUnitPriceUsd({ referenceUsd: 0.99, overrideUsd: null, multiplier: 1.15 }),
     ).toBe(1.14);
   });
+
+  it("lifts an auto-computed price up to the minimum", () => {
+    expect(
+      computeUnitPriceUsd({
+        referenceUsd: 0.05,
+        overrideUsd: null,
+        multiplier: 1,
+        minimumUsd: 0.5,
+      }),
+    ).toBe(0.5);
+  });
+
+  it("leaves an auto-computed price above the minimum untouched", () => {
+    expect(
+      computeUnitPriceUsd({
+        referenceUsd: 10,
+        overrideUsd: null,
+        multiplier: 0.9,
+        minimumUsd: 0.5,
+      }),
+    ).toBe(9);
+  });
+
+  it("never floors a manual override (overrides are deliberate)", () => {
+    expect(
+      computeUnitPriceUsd({
+        referenceUsd: 10,
+        overrideUsd: 0.25,
+        multiplier: 1,
+        minimumUsd: 0.5,
+      }),
+    ).toBe(0.25);
+  });
+
+  it("does not fabricate a price from the minimum when there is no reference", () => {
+    expect(
+      computeUnitPriceUsd({
+        referenceUsd: null,
+        overrideUsd: null,
+        multiplier: 1,
+        minimumUsd: 0.5,
+      }),
+    ).toBeNull();
+  });
+
+  it("treats a zero minimum as no floor", () => {
+    expect(
+      computeUnitPriceUsd({
+        referenceUsd: 0.05,
+        overrideUsd: null,
+        multiplier: 1,
+        minimumUsd: 0,
+      }),
+    ).toBe(0.05);
+  });
 });
 
 describe("currency helpers", () => {

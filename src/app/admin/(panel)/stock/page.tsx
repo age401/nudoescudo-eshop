@@ -90,7 +90,7 @@ export default async function AdminStockPage({
 }) {
   const { q, fb, m, u, names, msg } = await searchParams;
   const S = M.admin.stock;
-  const { multiplier } = await getPricingContext();
+  const { multiplier, minimumUsd } = await getPricingContext();
 
   const feedback: ImportFeedback =
     fb === "preview"
@@ -234,6 +234,7 @@ export default async function AdminStockPage({
                   referenceUsd: r.reference_usd != null ? Number(r.reference_usd) : null,
                   overrideUsd: override,
                   multiplier,
+                  minimumUsd,
                 });
                 return (
                   <tr key={r.id as string} className="border-b border-ink/5 last:border-0">

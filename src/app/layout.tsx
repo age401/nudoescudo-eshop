@@ -77,6 +77,12 @@ export default function RootLayout({
               <div className="min-w-0 flex-1">
                 <SearchBar variant="header" />
               </div>
+              <Link
+                href="/catalogo"
+                className="hidden shrink-0 rounded-full px-3 py-2 text-sm font-medium text-paper/90 transition-colors hover:text-foil-soft sm:inline-flex"
+              >
+                {M.catalog.title}
+              </Link>
               <CartButton />
             </div>
           </header>

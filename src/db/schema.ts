@@ -44,6 +44,12 @@ export const cards = pgTable(
     normalizedName: text("normalized_name").notNull(),
     /** URL slug, unique within a game. */
     slug: text("slug").notNull(),
+    /**
+     * Color codes for catalog filtering. For MTG these are the Scryfall
+     * color identity letters (W/U/B/R/G); empty = colorless. Other games
+     * (e.g. Pokemon energy types) can populate this generically.
+     */
+    colors: text("colors").array().notNull().default([]),
   },
   (t) => [
     uniqueIndex("cards_game_external_group_idx").on(t.gameId, t.externalGroupId),

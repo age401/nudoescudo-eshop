@@ -14,6 +14,53 @@ export const M = {
     searching: "Buscando…",
   },
 
+  catalog: {
+    title: "Catálogo",
+    browseAll: "Ver catálogo",
+    heading: (game: string) => `Catálogo de ${game}`,
+    intro: "Todas las cartas que tenemos en stock. Filtrá y ordená a gusto.",
+    empty: "No hay cartas en stock con estos filtros.",
+    color: "Color",
+    set: "Edición",
+    sort: "Ordenar",
+    allColors: "Todos",
+    allSets: "Todas",
+    clear: "Limpiar filtros",
+    results: (n: number) => `${n} ${n === 1 ? "carta" : "cartas"}`,
+    fromPrice: "desde",
+    sortOptions: {
+      name_asc: "Nombre (A-Z)",
+      name_desc: "Nombre (Z-A)",
+      price_asc: "Precio (menor a mayor)",
+      price_desc: "Precio (mayor a menor)",
+    } as Record<string, string>,
+    colors: {
+      // MTG color identity
+      W: "Blanco",
+      U: "Azul",
+      B: "Negro",
+      R: "Rojo",
+      G: "Verde",
+      C: "Sin color",
+      M: "Multicolor",
+      // Pokémon energy types
+      Grass: "Planta",
+      Fire: "Fuego",
+      Water: "Agua",
+      Lightning: "Rayo",
+      Psychic: "Psíquico",
+      Fighting: "Lucha",
+      Darkness: "Oscuridad",
+      Metal: "Metal",
+      Fairy: "Hada",
+      Dragon: "Dragón",
+      Colorless: "Incoloro",
+    } as Record<string, string>,
+    prev: "Anteriores",
+    next: "Siguientes",
+    page: (a: number, b: number) => `Página ${a} de ${b}`,
+  },
+
   card: {
     edition: "Edición",
     finish: "Acabado",
@@ -29,6 +76,8 @@ export const M = {
     language: "Idioma",
     quantity: "Cantidad",
     available: (n: number) => `${n} disponibles`,
+    inCart: (n: number) => `(${n} en tu pedido)`,
+    maxInCart: "Ya agregaste todo el stock disponible",
     outOfStock: "Sin stock por el momento",
     addToCart: "Agregar al pedido",
     added: "¡Agregado!",
@@ -217,6 +266,9 @@ export const M = {
       multiplier: "Multiplicador de precios",
       multiplierHelp:
         "El precio de venta es: precio de Card Kingdom × este número (1 = igual a Card Kingdom, 0.9 = 10% más barato).",
+      minPrice: "Precio mínimo (US$)",
+      minPriceHelp:
+        "Piso para las cartas con precio automático: si el precio de referencia × multiplicador queda por debajo, se vende a este mínimo. 0 = sin mínimo. Los precios manuales no se ven afectados.",
       ttl: "Horas de reserva sin confirmar",
       ttlHelp:
         "Si el cliente no confirma por email en este plazo, el pedido expira y se libera el stock.",

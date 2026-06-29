@@ -11,9 +11,13 @@ async function saveAction(formData: FormData) {
   "use server";
   await requireAdmin();
   const multiplier = Number(String(formData.get("multiplier")).replace(",", "."));
+  const minPrice = Number(String(formData.get("minPrice")).replace(",", "."));
   const ttl = parseInt(String(formData.get("ttl")), 10);
   if (Number.isFinite(multiplier) && multiplier > 0 && multiplier < 10) {
     await setSetting("price_multiplier", multiplier);
+  }
+  if (Number.isFinite(minPrice) && minPrice >= 0 && minPrice < 100000) {
+    await setSetting("min_price_usd", minPrice);
   }
   if (Number.isFinite(ttl) && ttl >= 1 && ttl <= 168) {
     await setSetting("reservation_ttl_hours", ttl);
@@ -30,6 +34,7 @@ export default async function AdminSettingsPage({
   const { ok } = await searchParams;
   const S = M.admin.settings;
   const multiplier = (await getSetting<number>("price_multiplier")) ?? 1;
+  const minPrice = (await getSetting<number>("min_price_usd")) ?? 0;
   const ttl = (await getSetting<number>("reservation_ttl_hours")) ?? 24;
 
   return (
@@ -53,6 +58,19 @@ export default async function AdminSettingsPage({
             className="font-price mt-1 w-32 rounded-lg border border-ink/15 px-3 py-2"
           />
           <span className="mt-1 block text-xs text-ink-faint">{S.multiplierHelp}</span>
+        </label>
+        <label className="block">
+          <span className="text-sm font-semibold">{S.minPrice}</span>
+          <input
+            type="number"
+            name="minPrice"
+            step="0.01"
+            min="0"
+            max="99999"
+            defaultValue={minPrice}
+            className="font-price mt-1 w-32 rounded-lg border border-ink/15 px-3 py-2"
+          />
+          <span className="mt-1 block text-xs text-ink-faint">{S.minPriceHelp}</span>
         </label>
         <label className="block">
           <span className="text-sm font-semibold">{S.ttl}</span>

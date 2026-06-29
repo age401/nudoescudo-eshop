@@ -23,12 +23,14 @@ export function CardView({
   card,
   multiplier,
   fxRate,
+  minimumUsd,
 }: {
   card: CardDetail;
   multiplier: number;
   fxRate: number | null;
+  minimumUsd: number;
 }) {
-  const { add } = useCart();
+  const { add, items } = useCart();
 
   const stocked = useMemo(
     () => card.printings.filter((p) => p.stock.length > 0),
@@ -69,11 +71,16 @@ export function CardView({
           referenceUsd: printing.referencePrices[activeFinish] ?? null,
           overrideUsd: variant.priceOverrideUsd,
           multiplier,
+          minimumUsd,
         })
       : null;
 
-  const maxQty = variant?.available ?? 0;
-  const clampedQty = Math.min(Math.max(qty, 1), Math.max(maxQty, 1));
+  // Stock already sitting in the cart for this exact variant must not be
+  // offered again: the most you can still add is (available − in cart).
+  const inCart =
+    items.find((i) => i.stockId === variant?.stockId)?.quantity ?? 0;
+  const remaining = Math.max((variant?.available ?? 0) - inCart, 0);
+  const clampedQty = remaining > 0 ? Math.min(Math.max(qty, 1), remaining) : 0;
 
   function selectPrinting(id: string) {
     setPrintingId(id);
@@ -94,7 +101,7 @@ export function CardView({
   }
 
   function onAdd() {
-    if (!printing || !variant || priceUsd == null) return;
+    if (!printing || !variant || priceUsd == null || clampedQty < 1) return;
     add(
       {
         stockId: variant.stockId,
@@ -110,6 +117,7 @@ export function CardView({
       },
       clampedQty,
     );
+    setQty(1);
     setAdded(true);
     setTimeout(() => setAdded(false), 1800);
   }
@@ -281,7 +289,8 @@ export function CardView({
                     type="button"
                     aria-label="Menos"
                     onClick={() => setQty((q) => Math.max(1, q - 1))}
-                    className="px-3 py-2 text-lg text-ink-soft hover:text-ink"
+                    disabled={remaining < 1}
+                    className="px-3 py-2 text-lg text-ink-soft hover:text-ink disabled:opacity-40"
                   >
                     −
                   </button>
@@ -291,19 +300,27 @@ export function CardView({
                   <button
                     type="button"
                     aria-label="Más"
-                    onClick={() => setQty((q) => Math.min(maxQty, q + 1))}
-                    className="px-3 py-2 text-lg text-ink-soft hover:text-ink"
+                    onClick={() => setQty((q) => Math.min(remaining, q + 1))}
+                    disabled={remaining < 1 || clampedQty >= remaining}
+                    className="px-3 py-2 text-lg text-ink-soft hover:text-ink disabled:opacity-40"
                   >
                     +
                   </button>
                 </div>
                 <span className="text-sm text-ink-faint">
-                  {M.card.available(variant.available)}
+                  {remaining > 0
+                    ? M.card.available(remaining)
+                    : M.card.maxInCart}
+                  {inCart > 0 && remaining > 0 && (
+                    <span className="ml-1 text-ink-faint">
+                      {M.card.inCart(inCart)}
+                    </span>
+                  )}
                 </span>
                 <button
                   type="button"
                   onClick={onAdd}
-                  disabled={priceUsd == null}
+                  disabled={priceUsd == null || remaining < 1}
                   className="rounded-lg bg-felt px-6 py-3 text-sm font-semibold text-paper shadow-card transition-all hover:bg-felt-soft disabled:opacity-50"
                 >
                   {added ? M.card.added : M.card.addToCart}

@@ -15,6 +15,7 @@ async function main() {
     .insert(settings)
     .values([
       { key: "price_multiplier", value: 1.0 },
+      { key: "min_price_usd", value: 0 },
       { key: "reservation_ttl_hours", value: 24 },
     ])
     .onConflictDoNothing();

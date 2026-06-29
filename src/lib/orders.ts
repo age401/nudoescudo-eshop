@@ -33,7 +33,7 @@ export async function createOrder(args: {
   const items = args.items.filter((i) => i.quantity > 0);
   if (!items.length) return { ok: false, problems: [] };
 
-  const { multiplier, fxRate } = await getPricingContext();
+  const { multiplier, fxRate, minimumUsd } = await getPricingContext();
   const ttlHours = (await getSetting<number>("reservation_ttl_hours")) ?? 24;
 
   return db.transaction(async (tx) => {
@@ -95,6 +95,7 @@ export async function createOrder(args: {
           ? Number(row.stock.priceOverrideUsd)
           : null,
         multiplier,
+        minimumUsd,
       });
       if (unit == null) {
         // Not sellable without a price; treat as unavailable.

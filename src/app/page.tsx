@@ -42,6 +42,7 @@ export default async function HomePage() {
                 referenceUsd: f.referenceUsd,
                 overrideUsd: f.overrideUsd,
                 multiplier: pricing.multiplier,
+                minimumUsd: pricing.minimumUsd,
               });
               return (
                 <Link

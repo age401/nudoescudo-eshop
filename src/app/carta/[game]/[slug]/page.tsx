@@ -19,7 +19,12 @@ export default async function CardPage({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
-      <CardView card={card} multiplier={pricing.multiplier} fxRate={pricing.fxRate} />
+      <CardView
+        card={card}
+        multiplier={pricing.multiplier}
+        fxRate={pricing.fxRate}
+        minimumUsd={pricing.minimumUsd}
+      />
     </div>
   );
 }

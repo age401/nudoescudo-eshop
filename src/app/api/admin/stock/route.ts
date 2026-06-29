@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { stock } from "@/db/schema";
 import { isAdmin } from "@/lib/admin-auth";
+import { ensurePokemonCardColors } from "@/lib/catalog";
 
 const Body = z.object({
   printingId: z.string().uuid(),
@@ -44,5 +45,14 @@ export async function POST(req: NextRequest) {
         updatedAt: new Date(),
       },
     });
+
+  // Lazily fill in Pokemon energy types for the catalog color filter. Never
+  // let a TCGdex hiccup block adding stock.
+  try {
+    await ensurePokemonCardColors(d.printingId);
+  } catch (err) {
+    console.error("Failed to backfill Pokemon colors", err);
+  }
+
   return NextResponse.json({ ok: true });
 }

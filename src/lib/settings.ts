@@ -22,10 +22,16 @@ export type FxRate = { rate: number; updatedAt: string };
 export async function getPricingContext(): Promise<{
   multiplier: number;
   fxRate: number | null;
+  minimumUsd: number;
 }> {
-  const [multiplier, fx] = await Promise.all([
+  const [multiplier, fx, minimum] = await Promise.all([
     getSetting<number>("price_multiplier"),
     getSetting<FxRate>("fx_rate_uyu_per_usd"),
+    getSetting<number>("min_price_usd"),
   ]);
-  return { multiplier: multiplier ?? 1, fxRate: fx?.rate ?? null };
+  return {
+    multiplier: multiplier ?? 1,
+    fxRate: fx?.rate ?? null,
+    minimumUsd: minimum ?? 0,
+  };
 }

@@ -5,7 +5,7 @@
  * Idempotent: upserts by oracle_id (cards) and scryfall id (printings).
  */
 import fs from "node:fs";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import StreamArray from "stream-json/streamers/StreamArray";
 import { db } from "@/db";
 import { cards, printings } from "@/db/schema";
@@ -19,6 +19,7 @@ type ScryfallCard = {
   name: string;
   lang: string;
   layout: string;
+  color_identity?: string[];
   games?: string[];
   set: string;
   set_name: string;
@@ -66,13 +67,19 @@ export async function syncScryfallCatalog(opts: { sets?: string[] } = {}) {
 
     // oracle_id -> card row id, filled lazily as we encounter cards.
     const cardIdByOracle = new Map<string, string>();
+    // oracle_id -> last-known colors, so a re-sync backfills/updates colors on
+    // cards that already existed without re-upserting every unchanged row.
+    const cardColorsByOracle = new Map<string, string[]>();
     const usedSlugs = new Set<string>(
       (await db.select({ slug: cards.slug }).from(cards)).map((r) => r.slug),
     );
     const existingCards = await db
-      .select({ id: cards.id, ext: cards.externalGroupId })
+      .select({ id: cards.id, ext: cards.externalGroupId, colors: cards.colors })
       .from(cards);
-    for (const r of existingCards) cardIdByOracle.set(r.ext, r.id);
+    for (const r of existingCards) {
+      cardIdByOracle.set(r.ext, r.id);
+      cardColorsByOracle.set(r.ext, r.colors);
+    }
 
     let scanned = 0;
     let importedPrintings = 0;
@@ -106,8 +113,17 @@ export async function syncScryfallCatalog(opts: { sets?: string[] } = {}) {
     async function ensureCard(c: ScryfallCard): Promise<string | null> {
       const oracleId = c.oracle_id ?? c.card_faces?.[0]?.oracle_id;
       if (!oracleId) return null;
+      const incomingColors = c.color_identity ?? [];
       const existing = cardIdByOracle.get(oracleId);
-      if (existing) return existing;
+      if (existing) {
+        // Backfill / refresh colors only when they actually changed.
+        const known = cardColorsByOracle.get(oracleId);
+        if (!known || known.join(",") !== incomingColors.join(",")) {
+          await db.update(cards).set({ colors: incomingColors }).where(eq(cards.id, existing));
+          cardColorsByOracle.set(oracleId, incomingColors);
+        }
+        return existing;
+      }
 
       let slug = slugify(c.name) || oracleId;
       if (usedSlugs.has(slug)) slug = `${slug}-${oracleId.slice(0, 8)}`;
@@ -121,13 +137,19 @@ export async function syncScryfallCatalog(opts: { sets?: string[] } = {}) {
           name: c.name,
           normalizedName: normalizeName(c.name),
           slug,
+          colors: incomingColors,
         })
         .onConflictDoUpdate({
           target: [cards.gameId, cards.externalGroupId],
-          set: { name: sql`excluded.name`, normalizedName: sql`excluded.normalized_name` },
+          set: {
+            name: sql`excluded.name`,
+            normalizedName: sql`excluded.normalized_name`,
+            colors: sql`excluded.colors`,
+          },
         })
         .returning({ id: cards.id });
       cardIdByOracle.set(oracleId, row.id);
+      cardColorsByOracle.set(oracleId, incomingColors);
       newCards++;
       return row.id;
     }
