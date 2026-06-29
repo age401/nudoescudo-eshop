@@ -8,6 +8,8 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
+# Dummy DATABASE_URL satisfies env validation during build; runtime value comes from docker-compose.
+ENV DATABASE_URL=postgres://build:build@localhost:5432/build
 RUN npm run build
 
 ENV NODE_ENV=production
