@@ -2,7 +2,7 @@
 # use `npm run db:dev` + `npm run mail:dev` instead (see README).
 services:
   db:
-    image: postgres:18-alpine
+    image: postgres:17-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: nudoescudo
@@ -50,7 +50,7 @@ services:
 
   # Nightly pg_dump with rotation (7 daily, 4 weekly, 6 monthly).
   backup:
-    image: prodrigestivill/postgres-backup-local:18
+    image: prodrigestivill/postgres-backup-local:17
     restart: unless-stopped
     environment:
       POSTGRES_HOST: db
