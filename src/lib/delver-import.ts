@@ -77,6 +77,10 @@ export function parseDelverCsv(text: string): DelverRow[] {
     columns: (header: string[]) => header.map((h) => h.trim().toLowerCase()),
     skip_empty_lines: true,
     relax_column_count: true,
+    // Delver's CSV export sometimes emits fields with embedded quotes (e.g.
+    // artist nicknames like `Josiah ""Jo"" Cameron`) without wrapping the
+    // whole field in an outer pair, which is invalid strict CSV.
+    relax_quotes: true,
     bom: true,
   });
 
