@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sql } from "drizzle-orm";
@@ -7,6 +8,7 @@ import { db } from "@/db";
 import { stock } from "@/db/schema";
 import { requireAdmin } from "@/lib/admin-auth";
 import { applyDelverImport, previewDelverImport } from "@/lib/delver-import";
+import { pendingDelverCopies } from "@/lib/delver-report";
 import { M } from "@/lib/messages";
 import { normalizeName } from "@/lib/normalize";
 import { formatUsd } from "@/lib/pricing";
@@ -106,6 +108,10 @@ export default async function AdminStockPage({
           ? { kind: "error", message: msg ?? "Error" }
           : null;
 
+  // Sold cards not yet pulled from Delver would come straight back on a
+  // replace-import, so warn about them right next to the import controls.
+  const pendingDelverCount = await pendingDelverCopies();
+
   const filter = q ? `%${normalizeName(q)}%` : null;
   const rows = (
     await db.execute(sql`
@@ -129,6 +135,15 @@ export default async function AdminStockPage({
       <div className="rounded-xl border border-ink/10 bg-white p-5">
         <h2 className="font-display text-lg font-semibold">{S.import.title}</h2>
         <p className="mt-1 text-sm text-ink-soft">{S.import.help}</p>
+
+        {pendingDelverCount > 0 && (
+          <p className="mt-3 rounded-lg bg-foil-soft px-4 py-3 text-sm">
+            {M.admin.delver.pendingWarning(pendingDelverCount)}{" "}
+            <Link href="/admin/vendidas" className="font-semibold underline">
+              {M.admin.delver.title}
+            </Link>
+          </p>
+        )}
 
         {feedback?.kind === "preview" && (
           <div className="mt-3 rounded-lg bg-paper-dim px-4 py-3 text-sm">

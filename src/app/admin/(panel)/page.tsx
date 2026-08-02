@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { requireAdmin } from "@/lib/admin-auth";
+import { pendingDelverCopies } from "@/lib/delver-report";
 import { M } from "@/lib/messages";
 import { getPricingContext } from "@/lib/settings";
 
@@ -63,6 +64,7 @@ export default async function AdminDashboard() {
   }[];
 
   const pricing = await getPricingContext();
+  const delverPending = await pendingDelverCopies();
   const D = M.admin.dashboard;
 
   const cards: [string, string, string][] = [
@@ -70,13 +72,14 @@ export default async function AdminDashboard() {
     [D.activeOrders, String(stats.active_orders), "/admin/pedidos"],
     [D.stockCards, String(stats.stocked_printings), "/admin/stock"],
     [D.stockValue, String(stats.total_copies), "/admin/stock"],
+    [D.delverPending, String(delverPending), "/admin/vendidas"],
     [D.fxRate, pricing.fxRate ? pricing.fxRate.toFixed(2) : "—", "/admin/configuracion"],
     [D.multiplier, `× ${pricing.multiplier}`, "/admin/configuracion"],
   ];
 
   return (
     <div>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {cards.map(([label, value, href]) => (
           <Link
             key={label}
@@ -85,7 +88,12 @@ export default async function AdminDashboard() {
           >
             <p className="text-xs text-ink-faint">{label}</p>
             <p
-              className={`font-price mt-1 text-2xl font-semibold ${label === D.newOrders && stats.new_orders > 0 ? "text-danger" : "text-felt"}`}
+              className={`font-price mt-1 text-2xl font-semibold ${
+                (label === D.newOrders && stats.new_orders > 0) ||
+                (label === D.delverPending && delverPending > 0)
+                  ? "text-danger"
+                  : "text-felt"
+              }`}
             >
               {value}
             </p>

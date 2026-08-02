@@ -183,6 +183,7 @@ export const M = {
       dashboard: "Inicio",
       orders: "Pedidos",
       stock: "Stock",
+      delver: "Vendidas",
       settings: "Configuración",
       logout: "Salir",
       viewStore: "Ver tienda",
@@ -192,6 +193,7 @@ export const M = {
       activeOrders: "Pedidos activos",
       stockCards: "Cartas en stock",
       stockValue: "Copias totales",
+      delverPending: "Quitar de Delver",
       fxRate: "Dólar (UYU)",
       multiplier: "Multiplicador de precios",
       syncs: "Sincronizaciones",
@@ -260,6 +262,36 @@ export const M = {
         replaceWarning:
           "Reemplazar borra las cantidades actuales y las sustituye por las del archivo.",
       },
+    },
+    delver: {
+      title: "Cartas vendidas para quitar de Delver",
+      intro:
+        "Estas cartas ya se entregaron, así que hay que sacarlas de la colección en Delver Lens. Después exportá el CSV y subilo en Stock con el modo «Reemplazar todo el stock».",
+      steps: [
+        "Quitá estas cartas de tu colección en Delver Lens.",
+        "Marcá acá que ya las quitaste.",
+        "Exportá el CSV desde Delver y subilo en Stock, modo «Reemplazar».",
+      ],
+      pendingTab: "Pendientes",
+      historyTab: "Ya quitadas",
+      empty: "No hay cartas pendientes de quitar de Delver. ¡Todo al día!",
+      emptyHistory: "Todavía no marcaste ninguna venta como quitada.",
+      card: "Carta",
+      variant: "Variante",
+      qty: "Cant.",
+      soldIn: "Pedidos",
+      soldAt: "Última venta",
+      markedAt: "Marcada",
+      summary: (copies: number, orders: number) =>
+        `${copies} ${copies === 1 ? "copia" : "copias"} en ${orders} ${orders === 1 ? "pedido" : "pedidos"}`,
+      markDone: "Marcar como quitadas de Delver",
+      markHelp:
+        "Marca los pedidos que ves acá arriba. Los que se entreguen después van a aparecer en la próxima tanda.",
+      undo: "Deshacer",
+      order: "Pedido",
+      date: "Entregado",
+      pendingWarning: (n: number) =>
+        `Ojo: hay ${n} ${n === 1 ? "carta pendiente" : "cartas pendientes"} de quitar de Delver. Si importás con «Reemplazar» antes de quitarlas, van a volver al stock.`,
     },
     settings: {
       title: "Configuración",

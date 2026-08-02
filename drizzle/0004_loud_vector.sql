@@ -1,0 +1,1 @@
+ALTER TABLE "orders" ADD COLUMN "delver_removed_at" timestamp with time zone;

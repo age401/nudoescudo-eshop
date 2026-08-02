@@ -11,7 +11,24 @@
 import { parse } from "csv-parse/sync";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { printings, stock } from "@/db/schema";
+import { cards, orderItems, printings, stock } from "@/db/schema";
+
+/**
+ * Delver Lens only tracks Magic. Replace mode must therefore leave stock of
+ * other games (Pokemon, entered by hand) alone — otherwise every import would
+ * wipe inventory the file could never describe.
+ */
+export const DELVER_GAME_ID = "mtg";
+
+/** Stock rows that a Delver export is authoritative over. */
+const delverScope = sql`
+  ${stock.printingId} in (
+    select ${printings.id}
+    from ${printings}
+    join ${cards} on ${cards.id} = ${printings.cardId}
+    where ${cards.gameId} = ${DELVER_GAME_ID}
+  )
+`;
 
 export type DelverRow = {
   scryfallId: string;
@@ -173,8 +190,11 @@ export async function applyDelverImport(
   await db.transaction(async (tx) => {
     if (mode === "replace") {
       // Reset quantities to 0 (keeps rows referenced by order_items intact),
-      // then set the new quantities below.
-      await tx.update(stock).set({ quantity: 0, updatedAt: new Date() });
+      // then set the new quantities below. Scoped to the game Delver exports.
+      await tx
+        .update(stock)
+        .set({ quantity: 0, updatedAt: new Date() })
+        .where(delverScope);
     }
     for (const { printingId, row, qty } of agg.values()) {
       const finish = row.foil ? "foil" : "nonfoil";
@@ -199,10 +219,18 @@ export async function applyDelverImport(
         });
     }
     if (mode === "replace") {
-      // Drop rows that ended with no quantity and no reservations.
-      await tx
-        .delete(stock)
-        .where(sql`${stock.quantity} = 0 and ${stock.reserved} = 0`);
+      // Drop rows that ended with no quantity and no reservations. Rows still
+      // referenced by an order are kept at quantity 0: order_items.stock_id is
+      // ON DELETE NO ACTION, so deleting them would abort the whole import
+      // (every sold-out card hits this once its order is completed).
+      await tx.delete(stock).where(sql`
+        ${stock.quantity} = 0
+        and ${stock.reserved} = 0
+        and not exists (
+          select 1 from ${orderItems} where ${orderItems.stockId} = ${stock.id}
+        )
+        and ${delverScope}
+      `);
     }
   });
 

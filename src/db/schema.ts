@@ -186,6 +186,13 @@ export const orders = pgTable(
     adminNote: text("admin_note"),
     /** Set true once the admin has seen the order in the panel. */
     seenByAdmin: boolean("seen_by_admin").notNull().default(false),
+    /**
+     * Set once the admin has pulled this order's cards out of their Delver Lens
+     * collection. Until then the order shows up in the "sold — remove from
+     * Delver" report, so the next replace-import doesn't resurrect sold cards.
+     * Only meaningful for completed orders.
+     */
+    delverRemovedAt: timestamp("delver_removed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     /** pending_confirmation orders expire (and release stock) after this. */
     reservationExpiresAt: timestamp("reservation_expires_at", { withTimezone: true }),
