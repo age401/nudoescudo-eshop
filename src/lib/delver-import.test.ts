@@ -110,6 +110,21 @@ describe("parseDelverCsv", () => {
   it("rejects a file without a Scryfall ID column", () => {
     expect(() => parseDelverCsv("Quantity,Card Name\n1,Foo\n")).toThrow();
   });
+
+  it("respects a genuine Quantity of 0 instead of defaulting to 1", () => {
+    // Delver uses 0 to mean "tracked, but I own none". parseInt("0") || 1
+    // used to silently turn that into 1 — regression coverage for that bug.
+    const csv = `Quantity,Scryfall Id\n0,${mtgKeptExt}\n`;
+    const rows = parseDelverCsv(csv);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].quantity).toBe(0);
+  });
+
+  it("still defaults to 1 when the quantity cell is blank or missing", () => {
+    const csv = `Quantity,Scryfall Id\n,${mtgKeptExt}\n`;
+    expect(parseDelverCsv(csv)[0].quantity).toBe(1);
+    expect(parseDelverCsv(`Scryfall Id\n${mtgKeptExt}\n`)[0].quantity).toBe(1);
+  });
 });
 
 describe("applyDelverImport (replace)", () => {

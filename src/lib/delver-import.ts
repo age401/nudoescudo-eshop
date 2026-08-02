@@ -83,6 +83,20 @@ function normalizeLanguage(v: string): string {
   return LANGUAGE_MAP[v.trim().toLowerCase()] ?? (v.trim() || "en").toLowerCase();
 }
 
+/**
+ * Delver Lens uses 0 to mean "tracked, but I own none" (e.g. a card removed
+ * from the collection but still catalogued). `parseInt("0", 10) || 1` would
+ * silently coerce that real zero into 1, since 0 is falsy — this only falls
+ * back to 1 when the column is absent or the cell doesn't hold a real number.
+ */
+function parseQuantity(raw: string | undefined): number {
+  if (raw === undefined) return 1;
+  const trimmed = raw.trim();
+  if (trimmed === "") return 1;
+  const n = parseInt(trimmed, 10);
+  return Number.isFinite(n) && n >= 0 ? n : 1;
+}
+
 function isFoil(v: string): boolean {
   const s = v.trim().toLowerCase();
   return s !== "" && s !== "normal" && s !== "no" && s !== "false" && s !== "0";
@@ -127,7 +141,7 @@ export function parseDelverCsv(text: string): DelverRow[] {
   return records
     .map((r) => ({
       scryfallId: (r[kScryfall] ?? "").trim(),
-      quantity: Math.max(parseInt(kQty ? r[kQty] : "1", 10) || 1, 1),
+      quantity: parseQuantity(kQty ? r[kQty] : undefined),
       foil: kFoil ? isFoil(r[kFoil] ?? "") : false,
       condition: normalizeCondition(kCond ? (r[kCond] ?? "") : ""),
       language: normalizeLanguage(kLang ? (r[kLang] ?? "") : ""),
