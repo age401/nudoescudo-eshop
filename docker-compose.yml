@@ -41,6 +41,7 @@ services:
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/nudoescudo
       TZ: America/Montevideo
       CACHE_DIR: /cache
+      NODE_OPTIONS: --max-old-space-size=1536
     command: npm run worker
     volumes:
       - workercache:/cache
