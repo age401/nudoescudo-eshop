@@ -1,6 +1,7 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { cards, games, prices, printings, stock } from "@/db/schema";
+import { conditionRank, poolKey } from "@/lib/conditions";
 import { normalizeName } from "@/lib/normalize";
 import { computeUnitPriceUsd } from "@/lib/pricing";
 
@@ -110,12 +111,23 @@ export async function getFeaturedStock(limit = 12): Promise<FeaturedCard[]> {
     }));
 }
 
-export type StockEntry = {
-  stockId: string;
+/**
+ * A sellable pool: every stock row that shares a printing, finish and
+ * language, regardless of condition. Visitors never see grades, so the
+ * grades of a pool are merged here and allocated at checkout.
+ */
+export type StockPool = {
+  poolKey: string;
+  printingId: string;
   finish: string;
-  condition: string;
   language: string;
+  /** Sellable copies across every grade in the pool. */
   available: number;
+  /**
+   * Manual price of the best-graded row in the pool, which is what a buyer
+   * gets first and therefore what we display. Worse grades may be cheaper;
+   * checkout never charges more than this.
+   */
   priceOverrideUsd: number | null;
 };
 
@@ -130,7 +142,8 @@ export type PrintingDetail = {
   releasedAt: string | null;
   /** Reference USD price per finish, from Card Kingdom. */
   referencePrices: Record<string, number>;
-  stock: StockEntry[];
+  /** Sellable pools for this printing (condition grades merged). */
+  stock: StockPool[];
 };
 
 export type CardDetail = {
@@ -141,6 +154,51 @@ export type CardDetail = {
   gameName: string;
   printings: PrintingDetail[];
 };
+
+/**
+ * Merge a printing's stock rows into one pool per finish+language. The
+ * displayed price follows the best-graded row: that is the copy a buyer
+ * receives first, and checkout caps every other grade at that price.
+ */
+function poolStock(
+  printingId: string,
+  rows: (typeof stock.$inferSelect)[],
+): StockPool[] {
+  const byKey = new Map<string, StockPool & { bestRank: number }>();
+  for (const s of rows) {
+    const available = s.quantity - s.reserved;
+    if (available <= 0) continue;
+    const key = poolKey(printingId, s.finish, s.language);
+    const rank = conditionRank(s.condition);
+    const override = s.priceOverrideUsd ? Number(s.priceOverrideUsd) : null;
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, {
+        poolKey: key,
+        printingId,
+        finish: s.finish,
+        language: s.language,
+        available,
+        priceOverrideUsd: override,
+        bestRank: rank,
+      });
+      continue;
+    }
+    existing.available += available;
+    if (rank < existing.bestRank) {
+      existing.bestRank = rank;
+      existing.priceOverrideUsd = override;
+    }
+  }
+  return [...byKey.values()].map((p) => ({
+    poolKey: p.poolKey,
+    printingId: p.printingId,
+    finish: p.finish,
+    language: p.language,
+    available: p.available,
+    priceOverrideUsd: p.priceOverrideUsd,
+  }));
+}
 
 /** Full card page payload: every printing, with prices and sellable stock. */
 export async function getCardBySlug(gameId: string, slug: string): Promise<CardDetail | null> {
@@ -154,7 +212,15 @@ export async function getCardBySlug(gameId: string, slug: string): Promise<CardD
     })
     .from(cards)
     .innerJoin(games, eq(games.id, cards.gameId))
-    .where(and(eq(cards.gameId, gameId), eq(cards.slug, slug)))
+    // A disabled game is not for sale: its card pages must 404 rather than
+    // stay reachable (and shoppable) by direct URL.
+    .where(
+      and(
+        eq(cards.gameId, gameId),
+        eq(cards.slug, slug),
+        eq(games.enabled, true),
+      ),
+    )
     .limit(1);
   if (!card.length) return null;
   const c = card[0];
@@ -193,16 +259,10 @@ export async function getCardBySlug(gameId: string, slug: string): Promise<CardD
           .filter((pr) => pr.printingId === p.id)
           .map((pr) => [pr.finish, Number(pr.priceUsd)]),
       ),
-      stock: stockRows
-        .filter((s) => s.printingId === p.id && s.quantity - s.reserved > 0)
-        .map((s) => ({
-          stockId: s.id,
-          finish: s.finish,
-          condition: s.condition,
-          language: s.language,
-          available: s.quantity - s.reserved,
-          priceOverrideUsd: s.priceOverrideUsd ? Number(s.priceOverrideUsd) : null,
-        })),
+      stock: poolStock(
+        p.id,
+        stockRows.filter((s) => s.printingId === p.id),
+      ),
     })),
   };
   return detail;

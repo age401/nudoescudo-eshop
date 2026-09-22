@@ -27,7 +27,7 @@ const splineMono = Spline_Sans_Mono({
 export const metadata: Metadata = {
   title: `${M.storeName} — ${M.tagline}`,
   description:
-    "Tienda de cartas sueltas de Magic: The Gathering y Pokémon en Uruguay. Buscá, armá tu pedido y retiralo en la tienda.",
+    "Tienda de cartas sueltas de Magic: The Gathering en Uruguay. Buscá, armá tu pedido y retiralo en la tienda.",
 };
 
 function KnotMark() {

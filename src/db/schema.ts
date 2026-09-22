@@ -50,6 +50,12 @@ export const cards = pgTable(
      * (e.g. Pokemon energy types) can populate this generically.
      */
     colors: text("colors").array().notNull().default([]),
+    /**
+     * Converted mana cost, for admin-side sorting. Numeric because a handful
+     * of MTG cards have fractional costs; null for games without a cost
+     * (Pokemon) and for MTG cards not yet touched by a catalog re-sync.
+     */
+    manaValue: numeric("mana_value", { precision: 5, scale: 2 }),
   },
   (t) => [
     uniqueIndex("cards_game_external_group_idx").on(t.gameId, t.externalGroupId),

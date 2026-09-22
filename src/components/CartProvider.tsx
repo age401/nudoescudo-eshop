@@ -10,11 +10,12 @@ import {
 } from "react";
 
 export type CartItem = {
-  stockId: string;
+  /** `printingId|finish|language` — conditions are merged into one pool. */
+  poolKey: string;
+  printingId: string;
   cardName: string;
   setName: string;
   finish: string;
-  condition: string;
   language: string;
   unitPriceUsd: number;
   imageUrl: string | null;
@@ -29,13 +30,14 @@ type CartApi = {
   count: number;
   totalUsd: number;
   add: (item: Omit<CartItem, "quantity">, quantity: number) => void;
-  setQuantity: (stockId: string, quantity: number) => void;
-  remove: (stockId: string) => void;
+  setQuantity: (poolKey: string, quantity: number) => void;
+  remove: (poolKey: string) => void;
   clear: () => void;
 };
 
 const CartContext = createContext<CartApi | null>(null);
-const STORAGE_KEY = "ne_cart_v1";
+// v2: items are keyed by pool, not by stock row. Older carts are dropped.
+const STORAGE_KEY = "ne_cart_v2";
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
@@ -66,27 +68,27 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const add = useCallback((item: Omit<CartItem, "quantity">, quantity: number) => {
     setItems((prev) => {
-      const existing = prev.find((i) => i.stockId === item.stockId);
+      const existing = prev.find((i) => i.poolKey === item.poolKey);
       if (existing) {
         const q = Math.min(existing.quantity + quantity, item.available);
         return prev.map((i) =>
-          i.stockId === item.stockId ? { ...i, ...item, quantity: q } : i,
+          i.poolKey === item.poolKey ? { ...i, ...item, quantity: q } : i,
         );
       }
       return [...prev, { ...item, quantity: Math.min(quantity, item.available) }];
     });
   }, []);
 
-  const setQuantity = useCallback((stockId: string, quantity: number) => {
+  const setQuantity = useCallback((poolKey: string, quantity: number) => {
     setItems((prev) =>
       prev
-        .map((i) => (i.stockId === stockId ? { ...i, quantity } : i))
+        .map((i) => (i.poolKey === poolKey ? { ...i, quantity } : i))
         .filter((i) => i.quantity > 0),
     );
   }, []);
 
-  const remove = useCallback((stockId: string) => {
-    setItems((prev) => prev.filter((i) => i.stockId !== stockId));
+  const remove = useCallback((poolKey: string) => {
+    setItems((prev) => prev.filter((i) => i.poolKey !== poolKey));
   }, []);
 
   const clear = useCallback(() => setItems([]), []);

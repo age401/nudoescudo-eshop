@@ -12,11 +12,15 @@ import { createOrder } from "@/lib/orders";
 const Body = z.object({
   email: z.string().email(),
   customerName: z.string().trim().max(120).optional(),
-  phone: z.string().trim().max(40).optional(),
+  // Required: the shop coordinates delivery and payment by phone.
+  phone: z.string().trim().min(6).max(40),
   items: z
     .array(
       z.object({
-        stockId: z.string().uuid(),
+        // A pool, not a stock row: conditions are resolved server-side.
+        printingId: z.string().uuid(),
+        finish: z.string().min(1).max(20),
+        language: z.string().min(1).max(10),
         quantity: z.number().int().min(1).max(99),
       }),
     )

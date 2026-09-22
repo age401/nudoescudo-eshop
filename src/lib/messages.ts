@@ -4,7 +4,7 @@
  */
 export const M = {
   storeName: process.env.STORE_NAME ?? "NudoEscudo",
-  tagline: "Cartas sueltas de Magic y Pokémon en Uruguay",
+  tagline: "Cartas sueltas de Magic: The Gathering en Uruguay",
 
   search: {
     placeholder: "Buscá tu carta…",
@@ -117,7 +117,6 @@ export const M = {
     remove: "Quitar",
     checkout: "Enviar pedido",
     continueShopping: "Seguir buscando",
-    approxUyu: "aprox.",
     stockChanged:
       "La disponibilidad de algunas cartas cambió. Revisá las cantidades marcadas.",
   },
@@ -127,7 +126,8 @@ export const M = {
     email: "Tu email",
     emailHelp: "Te enviaremos un enlace para confirmar el pedido.",
     name: "Nombre (opcional)",
-    phone: "Teléfono (opcional)",
+    phone: "Teléfono",
+    phoneHelp: "Lo usamos para coordinar la entrega y el pago.",
     submit: "Enviar pedido",
     submitting: "Enviando…",
     legal:
@@ -168,7 +168,7 @@ export const M = {
 
   footer: {
     pricesNote:
-      "Precios de referencia de Card Kingdom (Magic) y TCGplayer (Pokémon). El total en pesos es aproximado (tipo de cambio del día).",
+      "Precios de referencia de Card Kingdom. Los precios están expresados en dólares.",
   },
 
   admin: {
@@ -230,6 +230,18 @@ export const M = {
       confirmComplete: "¿Confirmás que el pedido fue entregado? Se descuenta el stock.",
       confirmCancel: "¿Cancelar este pedido? Se libera la reserva.",
       items: "Cartas del pedido",
+      sort: "Ordenar",
+      sortOptions: {
+        color_mv: "Color y valor de maná",
+        mv: "Valor de maná",
+        name: "Nombre (A-Z)",
+        price: "Precio (mayor a menor)",
+        set: "Edición",
+      } as Record<string, string>,
+      view: "Vista",
+      viewList: "Lista",
+      viewGrid: "Cuadrícula",
+      manaValue: "Valor de maná",
       contact: "Datos del cliente",
       notes: "Notas internas",
       saveNote: "Guardar nota",

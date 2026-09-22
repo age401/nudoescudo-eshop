@@ -1,0 +1,1 @@
+ALTER TABLE "cards" ADD COLUMN "mana_value" numeric(5, 2);

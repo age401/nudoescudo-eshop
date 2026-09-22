@@ -7,7 +7,7 @@ import { env } from "@/lib/env";
 import { sendMail } from "@/lib/mailer";
 import { M } from "@/lib/messages";
 import { confirmOrder } from "@/lib/orders";
-import { formatUsd, formatUyu } from "@/lib/pricing";
+import { formatUsd } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -60,11 +60,6 @@ export default async function ConfirmPage({
           </p>
           <p className="font-price mt-2 text-lg font-semibold text-felt">
             {formatUsd(Number(result.order.totalUsd))}
-            {result.order.totalUyu && (
-              <span className="ml-2 font-normal text-ink-faint">
-                ≈ {formatUyu(Number(result.order.totalUyu))}
-              </span>
-            )}
           </p>
         </>
       ) : (

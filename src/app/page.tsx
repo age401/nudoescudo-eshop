@@ -2,7 +2,7 @@ import Link from "next/link";
 import { SearchBar } from "@/components/SearchBar";
 import { getFeaturedStock } from "@/lib/catalog";
 import { M } from "@/lib/messages";
-import { computeUnitPriceUsd, formatUsd, formatUyu, usdToUyu } from "@/lib/pricing";
+import { computeUnitPriceUsd, formatUsd } from "@/lib/pricing";
 import { getPricingContext } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -68,18 +68,7 @@ export default async function HomePage() {
                     <p className="truncate text-sm font-medium">{f.name}</p>
                     <p className="truncate text-xs text-ink-faint">{f.setName}</p>
                     <p className="font-price mt-1 text-sm font-semibold text-felt">
-                      {price != null ? (
-                        <>
-                          {formatUsd(price)}
-                          {pricing.fxRate && (
-                            <span className="ml-2 font-normal text-ink-faint">
-                              ≈ {formatUyu(usdToUyu(price, pricing.fxRate))}
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        M.card.noPrice
-                      )}
+                      {price != null ? formatUsd(price) : M.card.noPrice}
                     </p>
                   </div>
                 </Link>
@@ -94,7 +83,7 @@ export default async function HomePage() {
         <div className="grid gap-4 rounded-2xl bg-paper-dim p-6 sm:grid-cols-3 sm:p-8">
           {[
             ["1. Buscá", "Encontrá la carta entre todas las ediciones y elegí la que tenemos en stock."],
-            ["2. Armá tu pedido", "Agregá cantidades y revisá el total en dólares y pesos."],
+            ["2. Armá tu pedido", "Agregá cantidades y revisá el total de tu pedido."],
             ["3. Confirmá por email", "Te enviamos un enlace para confirmar. Reservamos tus cartas y coordinamos la entrega."],
           ].map(([title, body]) => (
             <div key={title}>

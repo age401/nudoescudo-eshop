@@ -11,7 +11,7 @@
  */
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { cards, games, printings } from "@/db/schema";
+import { cards, printings } from "@/db/schema";
 import { fetchJson } from "@/lib/download";
 import { normalizeName, slugify } from "@/lib/normalize";
 import { withSyncRun } from "@/lib/sync-runs";
@@ -119,11 +119,6 @@ export async function syncPokemonCatalog() {
           });
         importedPrintings += batch.length;
       }
-    }
-
-    // Make the game visible in search once there is catalog data.
-    if (importedPrintings > 0) {
-      await db.update(games).set({ enabled: true }).where(sql`${games.id} = 'pokemon'`);
     }
 
     return { sets: sets.length, failedSets, importedPrintings, newCards };

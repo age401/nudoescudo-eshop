@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { CatalogFilters } from "@/components/CatalogFilters";
 import { getCatalog, getEnabledGames, parseCatalogSort } from "@/lib/catalog";
 import { M } from "@/lib/messages";
-import { formatUsd, formatUyu, usdToUyu } from "@/lib/pricing";
+import { formatUsd } from "@/lib/pricing";
 import { getPricingContext } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -111,11 +111,6 @@ export default async function CatalogPage({
                         {M.catalog.fromPrice}{" "}
                       </span>
                       {formatUsd(c.priceUsd)}
-                      {pricing.fxRate && (
-                        <span className="ml-1 font-normal text-ink-faint">
-                          ≈ {formatUyu(usdToUyu(c.priceUsd, pricing.fxRate))}
-                        </span>
-                      )}
                     </>
                   ) : (
                     M.card.noPrice

@@ -10,11 +10,31 @@ loadEnv();
 
 export type Mail = { to: string; subject: string; html: string };
 
-export async function sendMail(mail: Mail): Promise<void> {
+/**
+ * Test mode: when MAIL_REDIRECT_TO is set, every message goes to that address
+ * instead of the real recipient, with the intended one kept in the subject so
+ * a full order flow can be walked end to end from a single inbox. Leave it
+ * empty in production.
+ */
+function applyRedirect(mail: Mail): Mail {
+  const to = process.env.MAIL_REDIRECT_TO?.trim();
+  if (!to || to === mail.to) return mail;
+  return {
+    ...mail,
+    to,
+    subject: `[test → ${mail.to}] ${mail.subject}`,
+  };
+}
+
+export async function sendMail(input: Mail): Promise<void> {
+  const mail = applyRedirect(input);
   const mode = env("EMAIL_MODE", "console");
   const from = env("EMAIL_FROM", "NudoEscudo <no-reply@localhost>");
 
   if (mode === "resend") {
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error("EMAIL_MODE=resend but RESEND_API_KEY is not set");
+    }
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {

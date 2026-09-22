@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useCart } from "@/components/CartProvider";
-import type { CardDetail, PrintingDetail, StockEntry } from "@/lib/catalog";
+import type { CardDetail, PrintingDetail, StockPool } from "@/lib/catalog";
 import { M } from "@/lib/messages";
-import { computeUnitPriceUsd, formatUsd, formatUyu, usdToUyu } from "@/lib/pricing";
+import { computeUnitPriceUsd, formatUsd } from "@/lib/pricing";
 
 const FINISH_ORDER = ["nonfoil", "reverse", "foil", "etched"];
 
@@ -17,17 +17,16 @@ function finishLabel(f: string): string {
 
 /**
  * Interactive card page: pick edition (among stocked ones), finish,
- * condition/language variant and quantity, then add to the order.
+ * language and quantity, then add to the order. Condition grades are
+ * deliberately not exposed — each language is one merged pool.
  */
 export function CardView({
   card,
   multiplier,
-  fxRate,
   minimumUsd,
 }: {
   card: CardDetail;
   multiplier: number;
-  fxRate: number | null;
   minimumUsd: number;
 }) {
   const { add, items } = useCart();
@@ -56,11 +55,11 @@ export function CardView({
     ? finish
     : (finishesInStock[0] ?? "nonfoil");
 
-  const variants: StockEntry[] =
+  const variants: StockPool[] =
     printing?.stock.filter((s) => s.finish === activeFinish) ?? [];
-  const [variantId, setVariantId] = useState<string>(variants[0]?.stockId ?? "");
+  const [variantId, setVariantId] = useState<string>(variants[0]?.poolKey ?? "");
   const variant =
-    variants.find((v) => v.stockId === variantId) ?? variants[0] ?? null;
+    variants.find((v) => v.poolKey === variantId) ?? variants[0] ?? null;
 
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
@@ -78,7 +77,7 @@ export function CardView({
   // Stock already sitting in the cart for this exact variant must not be
   // offered again: the most you can still add is (available − in cart).
   const inCart =
-    items.find((i) => i.stockId === variant?.stockId)?.quantity ?? 0;
+    items.find((i) => i.poolKey === variant?.poolKey)?.quantity ?? 0;
   const remaining = Math.max((variant?.available ?? 0) - inCart, 0);
   const clampedQty = remaining > 0 ? Math.min(Math.max(qty, 1), remaining) : 0;
 
@@ -88,14 +87,14 @@ export function CardView({
     const fs = FINISH_ORDER.filter((f) => p?.stock.some((s) => s.finish === f));
     const f = fs[0] ?? "nonfoil";
     setFinish(f);
-    setVariantId(p?.stock.find((s) => s.finish === f)?.stockId ?? "");
+    setVariantId(p?.stock.find((s) => s.finish === f)?.poolKey ?? "");
     setQty(1);
     setAdded(false);
   }
 
   function selectFinish(f: string) {
     setFinish(f);
-    setVariantId(printing?.stock.find((s) => s.finish === f)?.stockId ?? "");
+    setVariantId(printing?.stock.find((s) => s.finish === f)?.poolKey ?? "");
     setQty(1);
     setAdded(false);
   }
@@ -104,11 +103,11 @@ export function CardView({
     if (!printing || !variant || priceUsd == null || clampedQty < 1) return;
     add(
       {
-        stockId: variant.stockId,
+        poolKey: variant.poolKey,
+        printingId: printing.printingId,
         cardName: card.name,
         setName: printing.setName,
         finish: variant.finish,
-        condition: variant.condition,
         language: variant.language,
         unitPriceUsd: priceUsd,
         imageUrl: printing.imageUris?.small ?? printing.imageUris?.normal ?? null,
@@ -169,16 +168,9 @@ export function CardView({
         {/* Price */}
         <div className="mt-6">
           {hasStock && priceUsd != null ? (
-            <div className="flex items-baseline gap-3">
-              <span className="font-price text-3xl font-semibold text-felt">
-                {formatUsd(priceUsd)}
-              </span>
-              {fxRate && (
-                <span className="font-price text-lg text-ink-faint">
-                  ≈ {formatUyu(usdToUyu(priceUsd, fxRate))}
-                </span>
-              )}
-            </div>
+            <span className="font-price text-3xl font-semibold text-felt">
+              {formatUsd(priceUsd)}
+            </span>
           ) : hasStock ? (
             <p className="font-display text-xl">{M.card.noPrice}</p>
           ) : (
@@ -254,14 +246,12 @@ export function CardView({
               </div>
             )}
 
-            {/* Condition / language variant */}
+            {/* Language (one pool per language; grades are merged) */}
             {variants.length > 1 && (
               <div className="mt-6">
-                <p className="mb-2 text-sm font-semibold">
-                  {M.card.condition} / {M.card.language}
-                </p>
+                <p className="mb-2 text-sm font-semibold">{M.card.language}</p>
                 <select
-                  value={variant?.stockId ?? ""}
+                  value={variant?.poolKey ?? ""}
                   onChange={(e) => {
                     setVariantId(e.target.value);
                     setQty(1);
@@ -269,10 +259,8 @@ export function CardView({
                   className="rounded-lg border border-ink/15 bg-white px-3 py-2 text-sm"
                 >
                   {variants.map((v) => (
-                    <option key={v.stockId} value={v.stockId}>
-                      {(M.card.conditions[v.condition] ?? v.condition) +
-                        " · " +
-                        (M.card.languages[v.language] ?? v.language) +
+                    <option key={v.poolKey} value={v.poolKey}>
+                      {(M.card.languages[v.language] ?? v.language) +
                         " · " +
                         M.card.available(v.available)}
                     </option>

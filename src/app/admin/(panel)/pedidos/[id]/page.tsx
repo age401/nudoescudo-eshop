@@ -3,11 +3,12 @@ import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { orderItems, orders } from "@/db/schema";
+import { cards, orderItems, orders, printings, stock } from "@/db/schema";
+import { AdminOrderItems } from "@/components/AdminOrderItems";
 import { requireAdmin } from "@/lib/admin-auth";
 import { M } from "@/lib/messages";
 import { cancelOrder, completeOrder } from "@/lib/orders";
-import { formatUsd, formatUyu } from "@/lib/pricing";
+import { formatUsd } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,35 @@ export default async function AdminOrderDetail({
     await db.update(orders).set({ seenByAdmin: true }).where(eq(orders.id, id));
   }
 
-  const items = await db.select().from(orderItems).where(eq(orderItems.orderId, id));
+  // Colors and mana value live on the card, not on the order snapshot, so
+  // they are joined in for sorting. Left joins keep items readable even if a
+  // stock row or printing was pruned after the sale.
+  const rows = await db
+    .select({
+      item: orderItems,
+      colors: cards.colors,
+      manaValue: cards.manaValue,
+    })
+    .from(orderItems)
+    .leftJoin(stock, eq(stock.id, orderItems.stockId))
+    .leftJoin(printings, eq(printings.id, stock.printingId))
+    .leftJoin(cards, eq(cards.id, printings.cardId))
+    .where(eq(orderItems.orderId, id));
+
+  const items = rows.map((r) => ({
+    id: r.item.id,
+    cardName: r.item.cardName,
+    setName: r.item.setName,
+    collectorNumber: r.item.collectorNumber,
+    finish: r.item.finish,
+    condition: r.item.condition,
+    language: r.item.language,
+    quantity: r.item.quantity,
+    unitPriceUsd: Number(r.item.unitPriceUsd),
+    imageUrl: r.item.imageUrl,
+    colors: r.colors ?? [],
+    manaValue: r.manaValue != null ? Number(r.manaValue) : null,
+  }));
   const O = M.admin.orders;
   const active = order.status === "pending_confirmation" || order.status === "confirmed";
 
@@ -95,39 +124,12 @@ export default async function AdminOrderDetail({
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
-        <div className="rounded-xl border border-ink/10 bg-white">
-          <p className="border-b border-ink/10 px-4 py-3 text-sm font-semibold">
-            {O.items}
-          </p>
-          <ul className="divide-y divide-ink/5">
-            {items.map((i) => (
-              <li key={i.id} className="flex items-center gap-3 px-4 py-3">
-                {i.imageUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={i.imageUrl} alt="" className="w-10 rounded shadow-card" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium">{i.cardName}</p>
-                  <p className="text-xs text-ink-faint">
-                    {i.setName} · {i.finish === "nonfoil" ? "Normal" : i.finish} · {i.condition} · {i.language.toUpperCase()}
-                  </p>
-                </div>
-                <span className="font-price text-sm">× {i.quantity}</span>
-                <span className="font-price w-24 text-right text-sm font-semibold">
-                  {formatUsd(Number(i.unitPriceUsd) * i.quantity)}
-                </span>
-              </li>
-            ))}
-          </ul>
-          <p className="border-t border-ink/10 px-4 py-3 text-right">
+        <div>
+          <AdminOrderItems items={items} />
+          <p className="mt-3 rounded-xl border border-ink/10 bg-white px-4 py-3 text-right">
             <span className="font-price text-lg font-semibold text-felt">
               {formatUsd(Number(order.totalUsd))}
             </span>
-            {order.totalUyu && (
-              <span className="font-price ml-2 text-sm text-ink-faint">
-                ≈ {formatUyu(Number(order.totalUyu))}
-              </span>
-            )}
           </p>
         </div>
 

@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useState } from "react";
 import { useCart } from "@/components/CartProvider";
 import { M } from "@/lib/messages";
-import { formatUsd, formatUyu, round2, usdToUyu } from "@/lib/pricing";
+import { formatUsd, round2 } from "@/lib/pricing";
 
 type Phase = "cart" | "form" | "sent";
 
-export function CartPage({ fxRate }: { fxRate: number | null }) {
+export function CartPage() {
   const { items, totalUsd, setQuantity, remove, clear } = useCart();
   const [phase, setPhase] = useState<Phase>("cart");
   const [email, setEmail] = useState("");
@@ -32,8 +32,13 @@ export function CartPage({ fxRate }: { fxRate: number | null }) {
         body: JSON.stringify({
           email,
           customerName: name || undefined,
-          phone: phone || undefined,
-          items: items.map((i) => ({ stockId: i.stockId, quantity: i.quantity })),
+          phone,
+          items: items.map((i) => ({
+            printingId: i.printingId,
+            finish: i.finish,
+            language: i.language,
+            quantity: i.quantity,
+          })),
         }),
       });
       if (res.status === 201) {
@@ -45,12 +50,12 @@ export function CartPage({ fxRate }: { fxRate: number | null }) {
       if (res.status === 409) {
         const data = await res.json();
         const issues: Record<string, number> = {};
-        for (const p of data.problems ?? []) issues[p.stockId] = p.available;
+        for (const p of data.problems ?? []) issues[p.poolKey] = p.available;
         setStockIssues(issues);
         // Clamp quantities to what's actually available.
         for (const p of data.problems ?? []) {
-          if (p.available <= 0) remove(p.stockId);
-          else setQuantity(p.stockId, p.available);
+          if (p.available <= 0) remove(p.poolKey);
+          else setQuantity(p.poolKey, p.available);
         }
         setPhase("cart");
         setError(M.cart.stockChanged);
@@ -111,9 +116,9 @@ export function CartPage({ fxRate }: { fxRate: number | null }) {
 
       <ul className="mt-6 divide-y divide-ink/10">
         {items.map((item) => {
-          const issue = stockIssues[item.stockId];
+          const issue = stockIssues[item.poolKey];
           return (
-            <li key={item.stockId} className="flex items-center gap-4 py-4">
+            <li key={item.poolKey} className="flex items-center gap-4 py-4">
               {item.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -131,8 +136,6 @@ export function CartPage({ fxRate }: { fxRate: number | null }) {
                 <p className="text-xs text-ink-faint">
                   {item.setName} · {item.finish === "nonfoil" ? M.card.nonfoil : M.card.foil}
                   {" · "}
-                  {M.card.conditions[item.condition] ?? item.condition}
-                  {" · "}
                   {(M.card.languages[item.language] ?? item.language).toString()}
                 </p>
                 {issue != null && (
@@ -145,7 +148,7 @@ export function CartPage({ fxRate }: { fxRate: number | null }) {
                 <button
                   type="button"
                   aria-label="Menos"
-                  onClick={() => setQuantity(item.stockId, item.quantity - 1)}
+                  onClick={() => setQuantity(item.poolKey, item.quantity - 1)}
                   className="px-2.5 py-1.5 text-ink-soft hover:text-ink"
                 >
                   −
@@ -155,7 +158,7 @@ export function CartPage({ fxRate }: { fxRate: number | null }) {
                   type="button"
                   aria-label="Más"
                   onClick={() =>
-                    setQuantity(item.stockId, Math.min(item.quantity + 1, item.available))
+                    setQuantity(item.poolKey, Math.min(item.quantity + 1, item.available))
                   }
                   className="px-2.5 py-1.5 text-ink-soft hover:text-ink"
                 >
@@ -167,7 +170,7 @@ export function CartPage({ fxRate }: { fxRate: number | null }) {
               </p>
               <button
                 type="button"
-                onClick={() => remove(item.stockId)}
+                onClick={() => remove(item.poolKey)}
                 aria-label={M.cart.remove}
                 className="text-ink-faint transition-colors hover:text-danger"
               >
@@ -184,11 +187,6 @@ export function CartPage({ fxRate }: { fxRate: number | null }) {
         <span className="font-display text-lg font-semibold">{M.cart.total}</span>
         <span className="font-price text-2xl font-semibold text-felt">
           {formatUsd(total)}
-          {fxRate && (
-            <span className="ml-2 text-base font-normal text-ink-faint">
-              ≈ {formatUyu(usdToUyu(total, fxRate))}
-            </span>
-          )}
         </span>
       </div>
 
@@ -235,13 +233,18 @@ export function CartPage({ fxRate }: { fxRate: number | null }) {
               />
             </label>
             <label className="block">
-              <span className="text-sm font-medium">{M.checkout.phone}</span>
+              <span className="text-sm font-medium">{M.checkout.phone} *</span>
               <input
                 type="tel"
+                required
+                minLength={6}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-ink/15 bg-white px-3 py-2"
               />
+              <span className="mt-1 block text-xs text-ink-faint">
+                {M.checkout.phoneHelp}
+              </span>
             </label>
           </div>
           <p className="mt-4 text-xs text-ink-faint">{M.checkout.legal}</p>

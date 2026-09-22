@@ -1,14 +1,25 @@
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { cards, orderItems, orders, prices, printings, stock } from "@/db/schema";
+import { cards, games, orderItems, orders, prices, printings, stock } from "@/db/schema";
+import { compareCondition, poolKey } from "@/lib/conditions";
 import { getPricingContext, getSetting } from "@/lib/settings";
 import { computeUnitPriceUsd, round2, usdToUyu } from "@/lib/pricing";
 import { orderCode, randomToken } from "@/lib/tokens";
 
-export type OrderRequestItem = { stockId: string; quantity: number };
+/**
+ * What the storefront asks for: a pool (printing + finish + language) and a
+ * quantity. Condition grades are never part of the request — they are an
+ * internal detail the allocator resolves.
+ */
+export type OrderRequestItem = {
+  printingId: string;
+  finish: string;
+  language: string;
+  quantity: number;
+};
 
 export type OrderProblem = {
-  stockId: string;
+  poolKey: string;
   cardName: string;
   available: number;
 };
@@ -23,21 +34,35 @@ export type CreateOrderResult =
  * Prices are recomputed server-side from the database — the client's prices
  * are never trusted. Stock rows are locked (FOR UPDATE) so two simultaneous
  * checkouts cannot oversell.
+ *
+ * Each requested pool is filled from its best condition grade downwards, so
+ * a buyer always gets the best copies on hand. Worse grades may carry a
+ * different manual price; a line is never charged above the pool price the
+ * storefront showed (the best grade's price), only below it.
  */
 export async function createOrder(args: {
   email: string;
   customerName?: string;
-  phone?: string;
+  phone: string;
   items: OrderRequestItem[];
 }): Promise<CreateOrderResult> {
-  const items = args.items.filter((i) => i.quantity > 0);
+  // Merge duplicate pools so one stock row is never allocated twice.
+  const merged = new Map<string, OrderRequestItem>();
+  for (const i of args.items) {
+    if (i.quantity <= 0) continue;
+    const key = poolKey(i.printingId, i.finish, i.language);
+    const existing = merged.get(key);
+    if (existing) existing.quantity += i.quantity;
+    else merged.set(key, { ...i });
+  }
+  const items = [...merged.values()];
   if (!items.length) return { ok: false, problems: [] };
 
   const { multiplier, fxRate, minimumUsd } = await getPricingContext();
   const ttlHours = (await getSetting<number>("reservation_ttl_hours")) ?? 24;
 
   return db.transaction(async (tx) => {
-    const ids = items.map((i) => i.stockId);
+    const printingIds = [...new Set(items.map((i) => i.printingId))];
     const rows = await tx
       .select({
         stock: stock,
@@ -50,46 +75,39 @@ export async function createOrder(args: {
       .from(stock)
       .innerJoin(printings, eq(printings.id, stock.printingId))
       .innerJoin(cards, eq(cards.id, printings.cardId))
-      .where(inArray(stock.id, ids))
+      // Stock of a disabled game is not sellable, whatever a stale cart or a
+      // direct API call asks for: those rows drop out here and the pool then
+      // reports as unavailable.
+      .innerJoin(games, and(eq(games.id, cards.gameId), eq(games.enabled, true)))
+      .where(inArray(stock.printingId, printingIds))
       .for("update", { of: stock });
 
-    const byId = new Map(rows.map((r) => [r.stock.id, r]));
+    // Group the locked rows into pools, best condition first.
+    type Row = (typeof rows)[number];
+    const pools = new Map<string, Row[]>();
+    for (const r of rows) {
+      const key = poolKey(r.printingId, r.stock.finish, r.stock.language);
+      const list = pools.get(key);
+      if (list) list.push(r);
+      else pools.set(key, [r]);
+    }
+    for (const list of pools.values()) {
+      list.sort((a, b) => compareCondition(a.stock.condition, b.stock.condition));
+    }
 
     // Reference prices for every involved printing+finish, in one query.
     const priceRows = rows.length
       ? await tx
           .select()
           .from(prices)
-          .where(inArray(prices.printingId, rows.map((r) => r.printingId)))
+          .where(inArray(prices.printingId, printingIds))
       : [];
     const refPrice = new Map(
       priceRows.map((p) => [`${p.printingId}|${p.finish}`, Number(p.priceUsd)]),
     );
 
-    // Validate availability and collect price info.
-    const problems: OrderProblem[] = [];
-    const lines: {
-      row: (typeof rows)[number];
-      quantity: number;
-      unitPriceUsd: number;
-    }[] = [];
-
-    for (const item of items) {
-      const row = byId.get(item.stockId);
-      if (!row) {
-        problems.push({ stockId: item.stockId, cardName: "?", available: 0 });
-        continue;
-      }
-      const available = row.stock.quantity - row.stock.reserved;
-      if (available < item.quantity) {
-        problems.push({
-          stockId: item.stockId,
-          cardName: row.cardName,
-          available: Math.max(available, 0),
-        });
-        continue;
-      }
-      const unit = computeUnitPriceUsd({
+    function priceOf(row: Row): number | null {
+      return computeUnitPriceUsd({
         referenceUsd: refPrice.get(`${row.printingId}|${row.stock.finish}`) ?? null,
         overrideUsd: row.stock.priceOverrideUsd
           ? Number(row.stock.priceOverrideUsd)
@@ -97,12 +115,48 @@ export async function createOrder(args: {
         multiplier,
         minimumUsd,
       });
-      if (unit == null) {
-        // Not sellable without a price; treat as unavailable.
-        problems.push({ stockId: item.stockId, cardName: row.cardName, available: 0 });
+    }
+
+    // Validate availability and resolve each pool into concrete stock lines.
+    const problems: OrderProblem[] = [];
+    const lines: { row: Row; quantity: number; unitPriceUsd: number }[] = [];
+
+    for (const item of items) {
+      const key = poolKey(item.printingId, item.finish, item.language);
+      const pool = (pools.get(key) ?? []).filter(
+        (r) => r.stock.quantity - r.stock.reserved > 0,
+      );
+      const cardName = pool[0]?.cardName ?? "?";
+      const available = pool.reduce(
+        (n, r) => n + (r.stock.quantity - r.stock.reserved),
+        0,
+      );
+      if (available < item.quantity) {
+        problems.push({ poolKey: key, cardName, available: Math.max(available, 0) });
         continue;
       }
-      lines.push({ row, quantity: item.quantity, unitPriceUsd: unit });
+
+      // The price the storefront showed: that of the best grade in the pool.
+      const poolPrice = priceOf(pool[0]);
+      if (poolPrice == null) {
+        // Not sellable without a price; treat as unavailable.
+        problems.push({ poolKey: key, cardName, available: 0 });
+        continue;
+      }
+
+      let remaining = item.quantity;
+      for (const row of pool) {
+        if (remaining <= 0) break;
+        const take = Math.min(remaining, row.stock.quantity - row.stock.reserved);
+        const rowPrice = priceOf(row);
+        lines.push({
+          row,
+          quantity: take,
+          // Never above what the buyer was quoted for the pool.
+          unitPriceUsd: rowPrice == null ? poolPrice : Math.min(rowPrice, poolPrice),
+        });
+        remaining -= take;
+      }
     }
 
     // Nothing has been written yet, so returning here aborts cleanly.
@@ -119,7 +173,7 @@ export async function createOrder(args: {
         publicCode: code,
         email: args.email,
         customerName: args.customerName || null,
-        phone: args.phone || null,
+        phone: args.phone,
         confirmationToken: token,
         fxRateUyuPerUsd: fxRate != null ? fxRate.toFixed(4) : null,
         priceMultiplier: multiplier.toFixed(3),

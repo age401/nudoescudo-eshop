@@ -22,7 +22,6 @@ export default async function CardPage({
       <CardView
         card={card}
         multiplier={pricing.multiplier}
-        fxRate={pricing.fxRate}
         minimumUsd={pricing.minimumUsd}
       />
     </div>

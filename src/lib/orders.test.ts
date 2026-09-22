@@ -5,11 +5,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { db, pool } from "@/db";
-import { cards, orderItems, orders, prices, printings, stock } from "@/db/schema";
+import { cards, games, orderItems, orders, prices, printings, stock } from "@/db/schema";
 import { cancelOrder, completeOrder, confirmOrder, createOrder } from "./orders";
 import { expireStaleOrders } from "@/jobs/order-expiry";
 
 let stockId: string;
+let lpStockId = "";
 let printingId: string;
 let cardId: string;
 const createdOrders: string[] = [];
@@ -52,12 +53,17 @@ beforeAll(async () => {
   stockId = s.id;
 });
 
+/** Orders address a pool (printing + finish + language), never a stock row. */
+function poolItem(quantity: number) {
+  return { printingId, finish: "nonfoil", language: "en", quantity };
+}
+
 afterAll(async () => {
   for (const id of createdOrders) {
     await db.delete(orderItems).where(eq(orderItems.orderId, id));
     await db.delete(orders).where(eq(orders.id, id));
   }
-  await db.delete(stock).where(eq(stock.id, stockId));
+  await db.delete(stock).where(eq(stock.printingId, printingId));
   await db.delete(prices).where(eq(prices.printingId, printingId));
   await db.delete(printings).where(eq(printings.id, printingId));
   await db.delete(cards).where(eq(cards.id, cardId));
@@ -73,7 +79,8 @@ describe("createOrder", () => {
   it("reserves stock and snapshots prices", async () => {
     const r = await createOrder({
       email: "a@test.com",
-      items: [{ stockId, quantity: 2 }],
+      phone: "099111222",
+      items: [poolItem(2)],
     });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -89,7 +96,8 @@ describe("createOrder", () => {
     // 3 total, 2 reserved -> only 1 available.
     const r = await createOrder({
       email: "b@test.com",
-      items: [{ stockId, quantity: 2 }],
+      phone: "099111222",
+      items: [poolItem(2)],
     });
     expect(r.ok).toBe(false);
     if (r.ok) return;
@@ -100,8 +108,8 @@ describe("createOrder", () => {
   it("prevents oversell under concurrency", async () => {
     // 1 available; two simultaneous orders of 1 -> exactly one succeeds.
     const [r1, r2] = await Promise.all([
-      createOrder({ email: "c1@test.com", items: [{ stockId, quantity: 1 }] }),
-      createOrder({ email: "c2@test.com", items: [{ stockId, quantity: 1 }] }),
+      createOrder({ email: "c1@test.com", phone: "099111222", items: [poolItem(1)] }),
+      createOrder({ email: "c2@test.com", phone: "099111222", items: [poolItem(1)] }),
     ]);
     const succeeded = [r1, r2].filter((r) => r.ok);
     expect(succeeded.length).toBe(1);
@@ -130,7 +138,8 @@ describe("lifecycle", () => {
   it("confirm + complete decrements physical stock", async () => {
     const r = await createOrder({
       email: "d@test.com",
-      items: [{ stockId, quantity: 1 }],
+      phone: "099111222",
+      items: [poolItem(1)],
     });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -150,7 +159,8 @@ describe("lifecycle", () => {
   it("cancel releases the reservation without touching quantity", async () => {
     const r = await createOrder({
       email: "e@test.com",
-      items: [{ stockId, quantity: 1 }],
+      phone: "099111222",
+      items: [poolItem(1)],
     });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -164,6 +174,131 @@ describe("lifecycle", () => {
   });
 });
 
+describe("condition pooling", () => {
+  /** Puts the pool's two grades in a known state before each case. */
+  async function setGrades(args: {
+    nm: { quantity: number; reserved: number; price: string };
+    lp: { quantity: number; reserved: number; price: string };
+  }) {
+    await db
+      .update(stock)
+      .set({
+        quantity: args.nm.quantity,
+        reserved: args.nm.reserved,
+        priceOverrideUsd: args.nm.price,
+      })
+      .where(eq(stock.id, stockId));
+    const values = {
+      printingId,
+      finish: "nonfoil",
+      condition: "LP",
+      language: "en",
+      quantity: args.lp.quantity,
+      reserved: args.lp.reserved,
+      priceOverrideUsd: args.lp.price,
+    };
+    if (lpStockId) {
+      await db.update(stock).set(values).where(eq(stock.id, lpStockId));
+    } else {
+      const [lp] = await db.insert(stock).values(values).returning();
+      lpStockId = lp.id;
+    }
+  }
+
+  it("fills a pool from the best grade down and never overcharges", async () => {
+    await setGrades({
+      nm: { quantity: 2, reserved: 0, price: "12.00" },
+      lp: { quantity: 2, reserved: 0, price: "7.00" },
+    });
+
+    const r = await createOrder({
+      email: "pool@test.com",
+      phone: "099111222",
+      items: [poolItem(3)],
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    createdOrders.push(r.orderId);
+
+    const lines = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, r.orderId));
+    const byStock = new Map(lines.map((l) => [l.stockId, l]));
+    // Both NM copies first, then one LP.
+    expect(byStock.get(stockId)?.quantity).toBe(2);
+    expect(byStock.get(lpStockId)?.quantity).toBe(1);
+    // The LP copy is cheaper, so it is billed at its own lower price.
+    expect(Number(byStock.get(stockId)!.unitPriceUsd)).toBeCloseTo(12);
+    expect(Number(byStock.get(lpStockId)!.unitPriceUsd)).toBeCloseTo(7);
+
+    const [order] = await db.select().from(orders).where(eq(orders.id, r.orderId));
+    expect(Number(order.totalUsd)).toBeCloseTo(31); // 12 + 12 + 7
+  });
+
+  it("caps a worse grade at the price the pool was shown for", async () => {
+    // A dearer LP copy must not be billed above the NM price the storefront
+    // quoted for the pool.
+    await setGrades({
+      nm: { quantity: 1, reserved: 0, price: "12.00" },
+      lp: { quantity: 2, reserved: 0, price: "99.00" },
+    });
+
+    const r = await createOrder({
+      email: "cap@test.com",
+      phone: "099111222",
+      items: [poolItem(2)],
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    createdOrders.push(r.orderId);
+
+    const lines = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, r.orderId));
+    const byStock = new Map(lines.map((l) => [l.stockId, l]));
+    expect(Number(byStock.get(stockId)!.unitPriceUsd)).toBeCloseTo(12);
+    expect(Number(byStock.get(lpStockId)!.unitPriceUsd)).toBeCloseTo(12); // not 99
+  });
+
+  it("reports availability across every grade in the pool", async () => {
+    await setGrades({
+      nm: { quantity: 2, reserved: 1, price: "12.00" },
+      lp: { quantity: 3, reserved: 1, price: "7.00" },
+    });
+
+    const r = await createOrder({
+      email: "avail@test.com",
+      phone: "099111222",
+      items: [poolItem(99)],
+    });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    // 1 sellable NM + 2 sellable LP.
+    expect(r.problems[0].available).toBe(3);
+    expect(r.problems[0].poolKey).toContain(printingId);
+  });
+});
+
+describe("disabled games", () => {
+  it("refuses stock from a game that is not on sale", async () => {
+    await db.update(games).set({ enabled: false }).where(eq(games.id, "mtg"));
+    try {
+      const r = await createOrder({
+        email: "disabled@test.com",
+        phone: "099111222",
+        items: [poolItem(1)],
+      });
+      expect(r.ok).toBe(false);
+      if (r.ok) return;
+      expect(r.problems[0].available).toBe(0);
+    } finally {
+      await db.update(games).set({ enabled: true }).where(eq(games.id, "mtg"));
+    }
+  });
+});
+
 describe("sanity", () => {
   it("test stock row exists with expected shape", async () => {
     const s = await getStock();
@@ -172,6 +307,6 @@ describe("sanity", () => {
       .select({ n: sql<number>`count(*)::int` })
       .from(stock)
       .where(eq(stock.printingId, printingId));
-    expect(n).toBe(1);
+    expect(n).toBeGreaterThanOrEqual(1);
   });
 });

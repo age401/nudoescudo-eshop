@@ -20,6 +20,7 @@ type ScryfallCard = {
   lang: string;
   layout: string;
   color_identity?: string[];
+  cmc?: number;
   games?: string[];
   set: string;
   set_name: string;
@@ -67,18 +68,26 @@ export async function syncScryfallCatalog(opts: { sets?: string[] } = {}) {
 
     // oracle_id -> card row id, filled lazily as we encounter cards.
     const cardIdByOracle = new Map<string, string>();
-    // oracle_id -> last-known colors, so a re-sync backfills/updates colors on
-    // cards that already existed without re-upserting every unchanged row.
+    // oracle_id -> last-known colors / mana value, so a re-sync backfills or
+    // updates them on cards that already existed without re-upserting every
+    // unchanged row.
     const cardColorsByOracle = new Map<string, string[]>();
+    const cardManaByOracle = new Map<string, string | null>();
     const usedSlugs = new Set<string>(
       (await db.select({ slug: cards.slug }).from(cards)).map((r) => r.slug),
     );
     const existingCards = await db
-      .select({ id: cards.id, ext: cards.externalGroupId, colors: cards.colors })
+      .select({
+        id: cards.id,
+        ext: cards.externalGroupId,
+        colors: cards.colors,
+        manaValue: cards.manaValue,
+      })
       .from(cards);
     for (const r of existingCards) {
       cardIdByOracle.set(r.ext, r.id);
       cardColorsByOracle.set(r.ext, r.colors);
+      cardManaByOracle.set(r.ext, r.manaValue);
     }
 
     let scanned = 0;
@@ -114,13 +123,23 @@ export async function syncScryfallCatalog(opts: { sets?: string[] } = {}) {
       const oracleId = c.oracle_id ?? c.card_faces?.[0]?.oracle_id;
       if (!oracleId) return null;
       const incomingColors = c.color_identity ?? [];
+      const incomingMana = c.cmc != null ? c.cmc.toFixed(2) : null;
       const existing = cardIdByOracle.get(oracleId);
       if (existing) {
-        // Backfill / refresh colors only when they actually changed.
-        const known = cardColorsByOracle.get(oracleId);
-        if (!known || known.join(",") !== incomingColors.join(",")) {
-          await db.update(cards).set({ colors: incomingColors }).where(eq(cards.id, existing));
+        // Backfill / refresh colors and mana value only when they changed.
+        const knownColors = cardColorsByOracle.get(oracleId);
+        const knownMana = cardManaByOracle.get(oracleId);
+        const colorsChanged =
+          !knownColors || knownColors.join(",") !== incomingColors.join(",");
+        // `knownMana === undefined` means the row predates this column.
+        const manaChanged = (knownMana ?? null) !== incomingMana;
+        if (colorsChanged || manaChanged) {
+          await db
+            .update(cards)
+            .set({ colors: incomingColors, manaValue: incomingMana })
+            .where(eq(cards.id, existing));
           cardColorsByOracle.set(oracleId, incomingColors);
+          cardManaByOracle.set(oracleId, incomingMana);
         }
         return existing;
       }
@@ -138,6 +157,7 @@ export async function syncScryfallCatalog(opts: { sets?: string[] } = {}) {
           normalizedName: normalizeName(c.name),
           slug,
           colors: incomingColors,
+          manaValue: incomingMana,
         })
         .onConflictDoUpdate({
           target: [cards.gameId, cards.externalGroupId],
@@ -145,11 +165,13 @@ export async function syncScryfallCatalog(opts: { sets?: string[] } = {}) {
             name: sql`excluded.name`,
             normalizedName: sql`excluded.normalized_name`,
             colors: sql`excluded.colors`,
+            manaValue: sql`excluded.mana_value`,
           },
         })
         .returning({ id: cards.id });
       cardIdByOracle.set(oracleId, row.id);
       cardColorsByOracle.set(oracleId, incomingColors);
+      cardManaByOracle.set(oracleId, incomingMana);
       newCards++;
       return row.id;
     }

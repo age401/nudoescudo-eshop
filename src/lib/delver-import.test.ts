@@ -5,7 +5,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { db, pool } from "@/db";
-import { cards, orderItems, orders, prices, printings, stock } from "@/db/schema";
+import { cards, games, orderItems, orders, prices, printings, stock } from "@/db/schema";
 import { completeOrder, confirmOrder, createOrder } from "./orders";
 import { applyDelverImport, parseDelverCsv } from "./delver-import";
 import { pendingDelverCopies, pendingDelverLines } from "./delver-report";
@@ -21,6 +21,7 @@ function csvFor(ids: string[]): string {
 // mtgSold is sold via an order; mtgKept stays in the Delver file.
 let mtgSoldExt: string, mtgKeptExt: string, pokeExt: string;
 let mtgSoldStockId: string, mtgKeptStockId: string, pokeStockId: string;
+let mtgSoldPrintingId: string, pokePrintingId: string;
 const printingIds: string[] = [];
 const cardIds: string[] = [];
 const createdOrders: string[] = [];
@@ -65,16 +66,29 @@ async function makeCard(gameId: string, externalId: string, qty: number) {
       quantity: qty,
     })
     .returning();
-  return s.id;
+  return { stockId: s.id, printingId: printing.id };
+}
+
+/** Orders address a pool (printing + finish + language), never a stock row. */
+function poolItem(printingId: string, quantity: number) {
+  return { printingId, finish: "nonfoil", language: "en", quantity };
 }
 
 beforeAll(async () => {
   mtgSoldExt = crypto.randomUUID();
   mtgKeptExt = crypto.randomUUID();
   pokeExt = `tcgdex:test-${crypto.randomUUID()}`;
-  mtgSoldStockId = await makeCard("mtg", mtgSoldExt, 1);
-  mtgKeptStockId = await makeCard("mtg", mtgKeptExt, 2);
-  pokeStockId = await makeCard("pokemon", pokeExt, 4);
+  ({ stockId: mtgSoldStockId, printingId: mtgSoldPrintingId } = await makeCard(
+    "mtg",
+    mtgSoldExt,
+    1,
+  ));
+  ({ stockId: mtgKeptStockId } = await makeCard("mtg", mtgKeptExt, 2));
+  ({ stockId: pokeStockId, printingId: pokePrintingId } = await makeCard(
+    "pokemon",
+    pokeExt,
+    4,
+  ));
 });
 
 afterAll(async () => {
@@ -131,7 +145,8 @@ describe("applyDelverImport (replace)", () => {
   it("does not crash when a sold-out card is still referenced by an order", async () => {
     const r = await createOrder({
       email: "import@test.com",
-      items: [{ stockId: mtgSoldStockId, quantity: 1 }],
+      phone: "099111222",
+      items: [poolItem(mtgSoldPrintingId, 1)],
     });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -176,10 +191,19 @@ describe("applyDelverImport (replace)", () => {
 describe("pending Delver report", () => {
   it("lists the sold MTG card and ignores sold Pokemon", async () => {
     // Sell a Pokemon card too; Delver never tracks it, so it must not appear.
-    const r = await createOrder({
-      email: "poke@test.com",
-      items: [{ stockId: pokeStockId, quantity: 1 }],
-    });
+    // Pokemon is not on sale by default, and orders refuse stock from a
+    // disabled game, so enable it just long enough to make the sale.
+    await db.update(games).set({ enabled: true }).where(eq(games.id, "pokemon"));
+    let r;
+    try {
+      r = await createOrder({
+        email: "poke@test.com",
+        phone: "099111222",
+        items: [poolItem(pokePrintingId, 1)],
+      });
+    } finally {
+      await db.update(games).set({ enabled: false }).where(eq(games.id, "pokemon"));
+    }
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     createdOrders.push(r.orderId);
