@@ -150,7 +150,10 @@ export async function syncScryfallCatalog(opts: { sets?: string[] } = {}) {
       const oracleId = c.oracle_id ?? c.card_faces?.[0]?.oracle_id;
       if (!oracleId) return null;
       const incomingColors = c.color_identity ?? [];
-      const incomingMana = c.cmc != null ? c.cmc.toFixed(2) : null;
+      // mana_value is numeric(5,2); joke cards like Gleemax (cmc 1,000,000)
+      // don't fit and would abort the whole sync. They only lose sort order.
+      const incomingMana =
+        c.cmc != null && c.cmc < 1000 ? c.cmc.toFixed(2) : null;
       const existing = cardIdByOracle.get(oracleId);
       if (existing) {
         // Backfill / refresh colors and mana value only when they changed.
