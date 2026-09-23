@@ -29,9 +29,10 @@ services:
       db:
         condition: service_healthy
     # Published only on localhost: the host's reverse proxy (nginx/caddy)
-    # terminates TLS and proxies the subdomain here.
+    # terminates TLS and proxies the subdomain here. APP_PORT (in .env) picks
+    # the host port, for servers where 3000 is already taken.
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
 
   worker:
     build: .
