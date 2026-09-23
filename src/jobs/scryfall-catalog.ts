@@ -5,6 +5,7 @@
  * Idempotent: upserts by oracle_id (cards) and scryfall id (printings).
  */
 import fs from "node:fs";
+import readline from "node:readline";
 import { eq, sql } from "drizzle-orm";
 import StreamArray from "stream-json/streamers/StreamArray";
 import { db } from "@/db";
@@ -53,15 +54,41 @@ function pickImages(c: ScryfallCard): Record<string, string> | null {
   return picked;
 }
 
+/** Stream card objects from a bulk file, one at a time. */
+async function* readScryfallCards(file: string, jsonl: boolean): AsyncGenerator<ScryfallCard> {
+  if (jsonl) {
+    const lines = readline.createInterface({
+      input: fs.createReadStream(file),
+      crlfDelay: Infinity,
+    });
+    for await (const line of lines) {
+      if (line.trim()) yield JSON.parse(line) as ScryfallCard;
+    }
+    return;
+  }
+  const stream = fs.createReadStream(file).pipe(StreamArray.withParser());
+  for await (const { value } of stream) yield value as ScryfallCard;
+}
+
 export async function syncScryfallCatalog(opts: { sets?: string[] } = {}) {
   return withSyncRun("scryfall_catalog", async () => {
     const bulk = await fetchJson<{
-      data: { type: string; download_uri: string }[];
+      data: { type: string; download_uri?: string; jsonl_download_uri?: string }[];
     }>("https://api.scryfall.com/bulk-data");
     const def = bulk.data.find((d) => d.type === "default_cards");
     if (!def) throw new Error("default_cards bulk entry not found");
 
-    const file = await downloadToCache(def.download_uri, "scryfall-default-cards.json", 20);
+    // Scryfall replaced the single JSON array (`download_uri`) with gzipped
+    // JSON Lines (`jsonl_download_uri`) in 2026. Prefer the new format, keep
+    // the old one as a fallback.
+    const jsonl = Boolean(def.jsonl_download_uri);
+    const url = def.jsonl_download_uri ?? def.download_uri;
+    if (!url) throw new Error("default_cards bulk entry has no download URL");
+    const file = await downloadToCache(
+      url,
+      jsonl ? "scryfall-default-cards.jsonl" : "scryfall-default-cards.json",
+      20,
+    );
     const setFilter = opts.sets?.length
       ? new Set(opts.sets.map((s) => s.toLowerCase()))
       : null;
@@ -176,9 +203,7 @@ export async function syncScryfallCatalog(opts: { sets?: string[] } = {}) {
       return row.id;
     }
 
-    const stream = fs.createReadStream(file).pipe(StreamArray.withParser());
-    for await (const { value } of stream) {
-      const c = value as ScryfallCard;
+    for await (const c of readScryfallCards(file, jsonl)) {
       scanned++;
       if (EXCLUDED_LAYOUTS.has(c.layout)) continue;
       if (!c.games?.includes("paper")) continue;
