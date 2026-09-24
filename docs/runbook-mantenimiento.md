@@ -78,9 +78,13 @@ Reiniciar todo (sección de arriba). Si sigue caída, mirar
 
 **No llegan los emails.**
 1. Revisar spam.
-2. Entrar a https://resend.com con la cuenta de la tienda → ver “Logs”. Si hay
+2. En el servidor: `docker compose exec app npm run mail:check -- TU@EMAIL`.
+   Revisa la configuración, el estado del dominio en Resend (y qué registros
+   DNS faltan) y manda un email de prueba. Todo lo que diga `FALLA` hay que
+   corregirlo en `.env` (luego `docker compose up -d`) o en el DNS.
+3. Entrar a https://resend.com con la cuenta de la tienda → ver “Logs”. Si hay
    errores de dominio, el dominio hay que re-verificarlo (sección DNS en Resend).
-3. Ver `docker compose logs app | grep -i mail`.
+4. Ver `docker compose logs app | grep -i mail`.
 
 **Los precios están viejos.**
 Panel → Inicio → “Precios Card Kingdom” → **Ejecutar ahora**. Si da error

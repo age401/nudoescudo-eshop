@@ -56,6 +56,8 @@ docker compose up -d --build
 - `worker` ejecuta los trabajos programados (precios, catálogos, tipo de cambio,
   expiración de pedidos). `backup` hace `pg_dump` diario a `./backups`.
 - Migraciones y seed corren automáticamente al iniciar `app`.
+- Emails: `docker compose exec app npm run mail:check -- TU@EMAIL` valida la
+  config, el dominio en Resend (y los registros DNS faltantes) y manda una prueba.
 - Primera vez: `docker compose exec app npm run sync -- catalog` (y `prices`,
   `fx`, `pokemon-catalog`) o usar los botones de "Ejecutar ahora" en `/admin`.
 
