@@ -82,6 +82,8 @@ solo, en el primer acceso.
 ## 5. Verificación final
 
 - [ ] La página carga con candado (HTTPS) en el dominio nuevo.
+- [ ] `docker compose exec app npm run mail:check -- TU@EMAIL` termina en
+      **Todo OK** y el email de prueba llega.
 - [ ] El buscador sugiere cartas y el stock coincide con el viejo.
 - [ ] Hacer un pedido de prueba con un email real → llega el email → confirmar
       → llega el aviso al `ADMIN_EMAIL` → aparece en el panel → cancelarlo.
