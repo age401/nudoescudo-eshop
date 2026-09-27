@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { requireAdmin } from "@/lib/admin-auth";
 import { M } from "@/lib/messages";
+import { formatUsd } from "@/lib/pricing";
 import { getPricingContext } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +44,11 @@ export default async function AdminDashboard() {
         (select count(*) from orders where status = 'confirmed' and seen_by_admin = false)::int as new_orders,
         (select count(*) from orders where status in ('pending_confirmation','confirmed'))::int as active_orders,
         (select count(distinct printing_id) from stock where quantity - reserved > 0)::int as stocked_printings,
-        (select coalesce(sum(quantity - reserved), 0) from stock)::int as total_copies
+        (select coalesce(sum(quantity - reserved), 0) from stock)::int as total_copies,
+        (select count(*) from orders where channel = 'in_store' and status = 'completed'
+           and created_at >= (date_trunc('day', now() at time zone 'America/Montevideo') at time zone 'America/Montevideo'))::int as store_today,
+        (select coalesce(sum(total_usd), 0) from orders where channel = 'in_store' and status = 'completed'
+           and created_at >= (date_trunc('day', now() at time zone 'America/Montevideo') at time zone 'America/Montevideo'))::float as store_today_usd
     `)
   ).rows as Record<string, number>[];
 
@@ -68,6 +73,11 @@ export default async function AdminDashboard() {
   const cards: [string, string, string][] = [
     [D.newOrders, String(stats.new_orders), "/admin/pedidos"],
     [D.activeOrders, String(stats.active_orders), "/admin/pedidos"],
+    [
+      D.inStoreToday,
+      stats.store_today ? `${stats.store_today} · ${formatUsd(stats.store_today_usd)}` : "0",
+      "/admin/pedidos?filtro=tienda",
+    ],
     [D.stockCards, String(stats.stocked_printings), "/admin/stock"],
     [D.stockValue, String(stats.total_copies), "/admin/stock"],
     [D.fxRate, pricing.fxRate ? pricing.fxRate.toFixed(2) : "—", "/admin/configuracion"],

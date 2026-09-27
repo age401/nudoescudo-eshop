@@ -19,6 +19,7 @@ export default async function AdminLayout({
   const links = [
     ["/admin", M.admin.nav.dashboard],
     ["/admin/pedidos", M.admin.nav.orders],
+    ["/admin/venta", M.admin.nav.sale],
     ["/admin/stock", M.admin.nav.stock],
     ["/admin/configuracion", M.admin.nav.settings],
   ] as const;

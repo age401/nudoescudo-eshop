@@ -203,6 +203,7 @@ export const stockMovementReasonEnum = pgEnum("stock_movement_reason", [
   "manual_adjust", // admin edited a quantity in the stock table
   "web_order", // web order handed over (completeOrder)
   "in_store_sale", // counter sale
+  "order_void", // completed sale annulled: copies back on the shelf
 ]);
 
 /**

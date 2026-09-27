@@ -1,0 +1,1 @@
+ALTER TYPE "public"."stock_movement_reason" ADD VALUE 'order_void';

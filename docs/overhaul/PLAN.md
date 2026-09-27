@@ -62,7 +62,7 @@ browser preview, commit, Status table updated.
 - [x] `/admin/stock/movimientos`: global ledger, filter by reason/date, links to orders/imports.
 - [x] CSV export (`/api/admin/stock/export`) honoring current filters (D11).
 - [x] Retire `/admin/vendidas` (D9): nav, dashboard card, warnings, redirect.
-- [ ] Admin nav: add "Venta en tienda" (P4) and "Respaldos" (P5) as they land. Stock now has sub-tabs Inventario · Importar de Delver · Movimientos (`stock/layout.tsx`).
+- [x] Admin nav: "Venta en tienda" added (P4); "Respaldos" lands with P5. Stock now has sub-tabs Inventario · Importar de Delver · Movimientos (`stock/layout.tsx`).
 
 ### P3 — Delver import rework
 - [x] `/admin/stock/importar`: "Agregar cartas" as the default flow — upload → preview table (card, set, variant, qty, current stock → new stock; unmatched rows listed with reason) → Confirm.
@@ -71,11 +71,13 @@ browser preview, commit, Status table updated.
 - [x] CLI `scripts/import-delver.ts` updated to the same library (replace needs `--i-understand` flag).
 
 ### P4 — In-store sale ("Venta en tienda")
-- [ ] `src/lib/in-store.ts`: parse (reuse `parseDelverCsv`), match (D6), suggestions, availability incl. reservations (D7). Unit/integration tests incl. the Serra Angel case.
-- [ ] `/admin/venta`: upload → review table: ✔ matched lines (variant picker if several conditions/langs), ⚠ partially available, ✖ unmatched with suggestion radios / manual search (reuse printings search) / skip; editable unit price, customer name, note; live total.
-- [ ] Confirm server action: locks rows, re-validates, creates `in_store` completed order, decrements stock via ledger. Idempotency guard against double submit.
-- [ ] Receipt/detail page works for in-store orders (no email); orders list gets a channel filter + badge; dashboard shows today's in-store sales.
+- [x] `src/lib/in-store.ts`: parse (reuse `parseDelverCsv`), match (D6), suggestions, availability incl. reservations (D7). Unit/integration tests incl. the Serra Angel case.
+- [x] `/admin/venta`: upload → review table: ✔ matched lines (variant picker if several conditions/langs), ⚠ partially available, ✖ unmatched with suggestion radios / manual search (reuse printings search) / skip; editable unit price, customer name, note; live total.
+- [x] Confirm server action: locks rows, re-validates, creates `in_store` completed order, decrements stock via ledger. Idempotency guard against double submit.
+- [x] Receipt/detail page works for in-store orders (no email); orders list gets a channel filter + badge; dashboard shows today's in-store sales.
 
+- [x] Extra: "Anular venta" on any completed order returns copies to stock (reason `order_void`, migration 0007).
+- [x] Extra: lines without a reference price start empty and block confirmation (no accidental US$ 0 sales).
 ### P5 — Backups & export
 - [ ] docker-compose: mount `./backups:/backups:ro` into `app`; `BACKUP_DIR` env.
 - [ ] `/admin/respaldos`: list dumps (date, size, daily/weekly/monthly), download (streamed, admin-only), freshness status; dashboard warning if newest > 36 h.
@@ -96,7 +98,7 @@ browser preview, commit, Status table updated.
 | P1 | done | migration 0006; `src/lib/stock.ts`; fixtures in `src/test/fixtures.ts`. |
 | P2 | done | `src/lib/stock-query.ts` (filters shared with export), `components/admin/StockRow.tsx`, `stock/actions.ts`. Old import UI moved as-is to `/admin/stock/importar` until P3. |
 | P3 | done | `src/lib/stock-import.ts` (+tests); UI in `stock/importar/` + `components/admin/ImportForms.tsx`. Replace phrase: `REEMPLAZAR TODO EL STOCK` (paste blocked, value uppercased). |
-| P4 | not started | |
+| P4 | done | `src/lib/in-store.ts` (+tests incl. Serra Angel case), `components/admin/InStoreSale.tsx`, `/admin/venta`. Idempotency: in-store orders store `in_store:<requestId>` in `confirmation_token`. |
 | P5 | not started | off-site target pending user decision |
 | P6 | not started | |
 
@@ -109,3 +111,4 @@ browser preview, commit, Status table updated.
 - 2026-09-27 — P1 done. Notes: replace-import now clamps rows to their reserved count (was: dropped to 0, breaking `quantity >= reserved`). `completeOrder`/`cancelOrder` lock the order row; `completeOrder` is idempotent. Dev tip: `npx tsx .local/clean-tests.mts` wipes leftover test fixtures if a test run dies before teardown.
 - 2026-09-27 — P2 done, verified in browser (edit/save/history/stale guard/export/redirect). Dev tip: `.local/admin-cookie.mts` mints an admin session cookie for the preview browser (set `ne_admin` via document.cookie).
 - 2026-09-27 — P3 done, verified in browser (add preview→apply, replace impact→guard→apply→undo restored stock). Dev tip: the built-in browser has no file upload; inject a `File` via `DataTransfer` into the input and `requestSubmit()`.
+- 2026-09-27 — P4 done, verified in browser with real catalog printings (wrong-edition suggestion, skip, price guard, confirm, void).
