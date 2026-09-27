@@ -26,6 +26,10 @@ services:
     environment:
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/nudoescudo
       TZ: America/Montevideo
+      # Nightly dumps, shown (read-only) in the admin panel under Respaldos.
+      BACKUP_DIR: /backups
+    volumes:
+      - ./backups:/backups:ro
     # Apply migrations + reference seed on every boot (both are idempotent).
     command: sh -c "npm run db:migrate && npm run db:seed && npm start"
     depends_on:
@@ -69,6 +73,10 @@ services:
       BACKUP_KEEP_DAYS: "7"
       BACKUP_KEEP_WEEKS: "4"
       BACKUP_KEEP_MONTHS: "6"
+      # Whole database (incl. the drizzle migrations schema and extensions),
+      # so a dump restores into an empty database. Pinned: older image
+      # versions defaulted to --schema=public, which is not restorable.
+      POSTGRES_EXTRA_OPTS: "-Z1"
     volumes:
       - ./backups:/backups
     depends_on:

@@ -184,6 +184,7 @@ export const M = {
       orders: "Pedidos",
       sale: "Venta en tienda",
       stock: "Stock",
+      backups: "Respaldos",
       settings: "Configuración",
       logout: "Salir",
       viewStore: "Ver tienda",
@@ -441,6 +442,39 @@ export const M = {
       done: (code: string) => `Venta ${code} registrada. Las cartas ya se descontaron del stock.`,
       newSale: "Nueva venta",
       maxAvailable: (n: number) => `Hay ${n} disponibles`,
+    },
+    backups: {
+      title: "Respaldos",
+      intro:
+        "La base de datos completa (catálogo, stock, pedidos, ventas, configuración) se copia sola todas las noches. Se guardan 7 copias diarias, 4 semanales y 6 mensuales.",
+      statusTitle: "Estado",
+      lastDump: "Última copia en el servidor",
+      ok: (h: string) => `Hace ${h}. Todo en orden.`,
+      stale: (h: string) => `Hace ${h}. ¡La copia nocturna no se está haciendo! Revisá el servicio «backup» (ver runbook).`,
+      missing: "No hay ninguna copia todavía. Revisá el servicio «backup» (ver runbook).",
+      unconfigured:
+        "El panel no tiene acceso a la carpeta de copias (falta BACKUP_DIR). En el servidor las copias igual se hacen; ver runbook.",
+      offsite: "Copia fuera del servidor",
+      offsiteOk: (when: string, remote: string) => `Última sincronización: ${when}${remote ? ` → ${remote}` : ""}.`,
+      offsiteStale: (when: string) =>
+        `Última sincronización: ${when}. Hace más de 2 días: revisá el cron de deploy/backup-offsite.sh.`,
+      offsiteNone:
+        "No configurada: si el servidor se pierde, se pierden también las copias. Ver «Copia fuera del servidor» en el runbook.",
+      exportsTitle: "Descargas rápidas",
+      exportsHelp:
+        "El stock en CSV se puede abrir en Excel y volver a importar desde «Importar de Delver». No reemplaza a la copia de la base (no incluye pedidos ni configuración).",
+      stockAll: "Stock completo (CSV)",
+      stockMtg: "Stock de Magic (CSV)",
+      listTitle: "Copias de la base de datos",
+      listHelp:
+        "Archivos .sql.gz (pg_dump comprimido). Descargá una cada tanto a tu computadora o a la nube. Para restaurar, seguí el runbook.",
+      kind: { daily: "Diaria", weekly: "Semanal", monthly: "Mensual" } as Record<string, string>,
+      date: "Fecha",
+      type: "Tipo",
+      size: "Tamaño",
+      download: "Descargar",
+      none: "No hay copias en la carpeta.",
+      dashboardWarning: "Las copias de seguridad tienen problemas.",
     },
     movements: {
       title: "Movimientos de stock",

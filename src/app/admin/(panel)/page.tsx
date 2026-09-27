@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { requireAdmin } from "@/lib/admin-auth";
 import { M } from "@/lib/messages";
+import { backupHealth } from "@/lib/backups";
 import { formatUsd } from "@/lib/pricing";
 import { getPricingContext } from "@/lib/settings";
 
@@ -68,6 +69,7 @@ export default async function AdminDashboard() {
   }[];
 
   const pricing = await getPricingContext();
+  const backups = await backupHealth();
   const D = M.admin.dashboard;
 
   const cards: [string, string, string][] = [
@@ -86,6 +88,14 @@ export default async function AdminDashboard() {
 
   return (
     <div>
+      {(backups.state === "stale" || backups.state === "missing") && (
+        <Link
+          href="/admin/respaldos"
+          className="mb-4 block rounded-xl border border-danger/40 bg-danger/5 px-4 py-3 text-sm font-medium text-danger hover:bg-danger/10"
+        >
+          ⚠ {M.admin.backups.dashboardWarning} →
+        </Link>
+      )}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {cards.map(([label, value, href]) => (
           <Link

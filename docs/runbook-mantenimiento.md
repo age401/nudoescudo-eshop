@@ -11,6 +11,8 @@ Para problemas y tareas poco frecuentes. Las tareas diarias están en
 | Catálogo de cartas (sets nuevos) | semanal       | ✅         |
 | Expirar pedidos sin confirmar  | cada 15 min     | ✅         |
 | Copia de seguridad de la base  | todas las noches | ✅        |
+| Copia fuera del servidor       | todas las noches | ✅ (una vez configurada) |
+| Probar que las copias sirven   | una vez por mes | ❌ manual |
 
 ## Ver que todo esté funcionando
 
@@ -52,23 +54,79 @@ la página.
 
 ## Copias de seguridad
 
-- Se generan solas cada noche en la carpeta `/opt/nudoescudo/backups`
-  (se guardan 7 diarias, 4 semanales y 6 mensuales).
-- **Recomendado**: una vez por mes, bajarse la más reciente a una computadora
-  propia:
+Hay tres niveles, del más cómodo al más completo:
+
+1. **Stock en CSV** — Panel → **Respaldos** → “Stock completo (CSV)”. Se abre
+   en Excel y se puede volver a importar desde Stock → Importar de Delver. Solo
+   tiene el stock (no pedidos ni configuración).
+2. **Copia nocturna de la base** — el servicio `backup` hace un `pg_dump`
+   completo cada noche en la carpeta `backups/` de la aplicación (7 diarias,
+   4 semanales, 6 mensuales). Se ven y se descargan desde Panel →
+   **Respaldos**. Si la última tiene más de 36 horas, el panel lo avisa en
+   Inicio.
+3. **Copia fuera del servidor** — lo único que protege si se pierde el
+   servidor entero (disco, proveedor, hackeo). **Hay que configurarla una vez**
+   (abajo). El panel muestra en Respaldos cuándo fue la última sincronización.
+
+### Configurar la copia fuera del servidor (una sola vez)
+
+Recomendado: **Backblaze B2** (los primeros 10 GB son gratis; estas copias
+ocupan bastante menos). También sirve Cloudflare R2 o Google Drive: el script
+usa `rclone`, que habla con todos.
+
+1. Crear una cuenta en backblaze.com → **B2 Cloud Storage** → crear un bucket
+   privado (p. ej. `nudoescudo-backups`). En *Lifecycle Settings* → *Use
+   custom lifecycle rules*: prefijo vacío, “Days till hide” **180**, “Days
+   till delete” **1** (así las copias de más de 6 meses se borran solas).
+2. *Application Keys* → crear una clave con acceso **solo a ese bucket**
+   (Read and Write). Anotar keyID y applicationKey.
+3. En el servidor, como root:
 
 ```bash
-scp USUARIO@IP-DEL-SERVIDOR:/opt/nudoescudo/backups/daily/*.sql.gz .
+apt install rclone
+rclone config            # n (nuevo) → nombre: b2 → tipo: b2 → pegar keyID y applicationKey
+cp deploy/backup-offsite.sh /usr/local/sbin/nudoescudo-backup-offsite.sh
+chmod +x /usr/local/sbin/nudoescudo-backup-offsite.sh
+OFFSITE_REMOTE=b2:nudoescudo-backups/prod /usr/local/sbin/nudoescudo-backup-offsite.sh   # prueba
+crontab -e
+# agregar esta línea (todos los días 04:30):
+30 4 * * * OFFSITE_REMOTE=b2:nudoescudo-backups/prod /usr/local/sbin/nudoescudo-backup-offsite.sh >> /var/log/nudoescudo-offsite.log 2>&1
 ```
 
-### Restaurar una copia (último recurso)
+El script solo **agrega** archivos al bucket (nunca borra), así que aunque
+alguien borre el servidor, las copias de afuera quedan.
+
+### Probar que las copias sirven (una vez por mes)
+
+Una copia que nunca se probó no es una copia. En el servidor, como root:
 
 ```bash
-cd /opt/nudoescudo
+cp deploy/backup-restore-test.sh /usr/local/sbin/nudoescudo-backup-restore-test.sh
+chmod +x /usr/local/sbin/nudoescudo-backup-restore-test.sh
+/usr/local/sbin/nudoescudo-backup-restore-test.sh
+```
+
+Restaura la última copia en una base temporal dentro de **staging**, compara la
+cantidad de filas con producción y la borra. No toca ni producción ni staging.
+Si termina con `OK`, las copias sirven.
+
+### Restaurar una copia en producción (último recurso)
+
+Esto **reemplaza toda la base** por la copia. Antes, descargá una copia del
+estado actual desde Respaldos por las dudas.
+
+```bash
+cd CARPETA-DE-LA-APLICACION
 docker compose stop app worker
-gunzip -c backups/daily/ARCHIVO.sql.gz | docker compose exec -T db psql -U postgres -d nudoescudo
+docker compose exec -T db psql -U postgres -d nudoescudo -v ON_ERROR_STOP=1   -c "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public;"
+gunzip -c backups/daily/ARCHIVO.sql.gz | grep -v '^CREATE SCHEMA public;$'   | docker compose exec -T db psql -q -U postgres -d nudoescudo -v ON_ERROR_STOP=1
 docker compose start app worker
 ```
+
+Si el servidor se perdió: instalar la aplicación en uno nuevo (ver
+`guia-migracion.md`), bajar la copia del bucket con
+`rclone copy b2:nudoescudo-backups/prod/daily/ARCHIVO.sql.gz backups/daily/`
+y seguir los pasos de arriba.
 
 ## Problemas comunes
 

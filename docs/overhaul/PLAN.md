@@ -79,12 +79,13 @@ browser preview, commit, Status table updated.
 - [x] Extra: "Anular venta" on any completed order returns copies to stock (reason `order_void`, migration 0007).
 - [x] Extra: lines without a reference price start empty and block confirmation (no accidental US$ 0 sales).
 ### P5 — Backups & export
-- [ ] docker-compose: mount `./backups:/backups:ro` into `app`; `BACKUP_DIR` env.
-- [ ] `/admin/respaldos`: list dumps (date, size, daily/weekly/monthly), download (streamed, admin-only), freshness status; dashboard warning if newest > 36 h.
-- [ ] Off-site: `deploy/backup-offsite.sh` (rclone sync of `backups/` to the chosen bucket, run by cron after the dump) + setup docs. **Needs user decision + credentials.**
-- [ ] `deploy/backup-restore-test.sh`: restore newest dump into staging DB (adapts `staging-refresh-db.sh`), documented monthly check.
-- [ ] Runbook updated (`docs/runbook-mantenimiento.md`).
+- [x] docker-compose: mount `./backups:/backups:ro` into `app`; `BACKUP_DIR` env.
+- [x] `/admin/respaldos`: list dumps (date, size, daily/weekly/monthly), download (streamed, admin-only), freshness status; dashboard warning if newest > 36 h.
+- [x] Off-site: `deploy/backup-offsite.sh` (rclone sync of `backups/` to the chosen bucket, run by cron after the dump) + setup docs. **Needs user decision + credentials.**
+- [x] `deploy/backup-restore-test.sh`: restore newest dump into staging DB (adapts `staging-refresh-db.sh`), documented monthly check.
+- [x] Runbook updated (`docs/runbook-mantenimiento.md`).
 
+- [ ] **Server setup (user, once):** create the B2 bucket + key, `rclone config`, install the two scripts and the cron line — steps in `docs/runbook-mantenimiento.md`. Run the restore test once after the first deploy.
 ### P6 — Docs, QA, release
 - [ ] `docs/guia-operacion.md` rewritten for the new workflows (Spanish, operator-facing).
 - [ ] Full manual QA on staging with a real Delver file (import add, replace w/ undo, in-store sale with a wrong edition).
@@ -99,12 +100,12 @@ browser preview, commit, Status table updated.
 | P2 | done | `src/lib/stock-query.ts` (filters shared with export), `components/admin/StockRow.tsx`, `stock/actions.ts`. Old import UI moved as-is to `/admin/stock/importar` until P3. |
 | P3 | done | `src/lib/stock-import.ts` (+tests); UI in `stock/importar/` + `components/admin/ImportForms.tsx`. Replace phrase: `REEMPLAZAR TODO EL STOCK` (paste blocked, value uppercased). |
 | P4 | done | `src/lib/in-store.ts` (+tests incl. Serra Angel case), `components/admin/InStoreSale.tsx`, `/admin/venta`. Idempotency: in-store orders store `in_store:<requestId>` in `confirmation_token`. |
-| P5 | not started | off-site target pending user decision |
+| P5 | done (code) | `src/lib/backups.ts`, `/admin/respaldos`, download route, `deploy/backup-offsite.sh` (rclone copy, provider-agnostic, recommended B2), `deploy/backup-restore-test.sh`. Pending: one-time server setup by the user. |
 | P6 | not started | |
 
 ## Open questions for the user
-- Off-site backup destination: Backblaze B2 (recommended, ~free at this size), Cloudflare R2, or Google Drive (via rclone)?
-- In-store sales: record the customer's name/phone optionally, or never?
+- Off-site backup destination: recommended Backblaze B2 (script is rclone-based, so R2/Drive also work). Needs the user to create the account + run the setup.
+- In-store sales: optional customer name + note implemented; say if phone is wanted too.
 
 ## Session log
 - 2026-09-27 — Explored codebase, wrote this plan, P0 done.
@@ -112,3 +113,4 @@ browser preview, commit, Status table updated.
 - 2026-09-27 — P2 done, verified in browser (edit/save/history/stale guard/export/redirect). Dev tip: `.local/admin-cookie.mts` mints an admin session cookie for the preview browser (set `ne_admin` via document.cookie).
 - 2026-09-27 — P3 done, verified in browser (add preview→apply, replace impact→guard→apply→undo restored stock). Dev tip: the built-in browser has no file upload; inject a `File` via `DataTransfer` into the input and `requestSubmit()`.
 - 2026-09-27 — P4 done, verified in browser with real catalog printings (wrong-edition suggestion, skip, price guard, confirm, void).
+- 2026-09-27 — P5 done (code). Checked prodrigestivill image: default POSTGRES_EXTRA_OPTS is now `-Z1` (whole DB) — pinned it explicitly since old versions defaulted to `--schema=public`, which isn't restorable.
