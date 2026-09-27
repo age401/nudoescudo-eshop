@@ -121,7 +121,7 @@ export function confirmationEmail(order: Order, items: Item[], siteUrl: string) 
 
 export function adminNewOrderEmail(order: Order, items: Item[], siteUrl: string) {
   const body = `
-    <p><strong>${esc(order.email)}</strong>${order.customerName ? ` (${esc(order.customerName)})` : ""}${order.phone ? ` · Tel: ${esc(order.phone)}` : ""} confirmó un pedido.</p>
+    <p><strong>${esc(order.email ?? "")}</strong>${order.customerName ? ` (${esc(order.customerName)})` : ""}${order.phone ? ` · Tel: ${esc(order.phone)}` : ""} confirmó un pedido.</p>
     ${itemsTable(items)}
     ${totals(order)}
     <p style="text-align:center;margin:24px 0;">

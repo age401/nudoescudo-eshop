@@ -160,6 +160,84 @@ export const stock = pgTable(
   ],
 );
 
+export const stockImportKindEnum = pgEnum("stock_import_kind", [
+  "add", // Delver file adds copies to what is already in stock
+  "replace", // Delver file becomes the whole MTG stock
+]);
+
+export const stockImportStatusEnum = pgEnum("stock_import_status", [
+  "previewed", // parsed and matched, waiting for the admin to confirm
+  "applied",
+  "undone",
+  "discarded", // previewed but never applied
+]);
+
+/**
+ * One Delver Lens upload. The parsed rows are stored at preview time so that
+ * confirming applies exactly what the admin reviewed, and so an applied
+ * import can be shown and undone later.
+ */
+export const stockImports = pgTable(
+  "stock_imports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    kind: stockImportKindEnum("kind").notNull(),
+    status: stockImportStatusEnum("status").notNull().default("previewed"),
+    filename: text("filename"),
+    /** Parsed + matched rows (see src/lib/stock-import.ts). */
+    rows: jsonb("rows").$type<unknown[]>().notNull(),
+    /** Counts shown in the history list (matched, unmatched, copies, ...). */
+    summary: jsonb("summary").$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    appliedAt: timestamp("applied_at", { withTimezone: true }),
+    undoneAt: timestamp("undone_at", { withTimezone: true }),
+  },
+  (t) => [index("stock_imports_created_idx").on(t.createdAt)],
+);
+
+export const stockMovementReasonEnum = pgEnum("stock_movement_reason", [
+  "import_add", // Delver "add cards" import
+  "import_replace", // Delver "replace all stock" import
+  "import_undo", // reversal of one of the above
+  "manual_add", // admin added copies through the add-stock form
+  "manual_adjust", // admin edited a quantity in the stock table
+  "web_order", // web order handed over (completeOrder)
+  "in_store_sale", // counter sale
+]);
+
+/**
+ * Stock ledger: one row per change to stock.quantity, written by
+ * src/lib/stock.ts in the same transaction as the change itself. The variant
+ * is copied onto the movement so history stays readable after an empty stock
+ * row is deleted (stock_id is then nulled).
+ */
+export const stockMovements = pgTable(
+  "stock_movements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    stockId: uuid("stock_id").references(() => stock.id, { onDelete: "set null" }),
+    printingId: uuid("printing_id")
+      .notNull()
+      .references(() => printings.id),
+    finish: text("finish").notNull(),
+    condition: text("condition").notNull(),
+    language: text("language").notNull(),
+    delta: integer("delta").notNull(),
+    quantityAfter: integer("quantity_after").notNull(),
+    reason: stockMovementReasonEnum("reason").notNull(),
+    importId: uuid("import_id").references(() => stockImports.id),
+    orderId: uuid("order_id").references(() => orders.id),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("stock_movements_stock_idx").on(t.stockId, t.createdAt),
+    index("stock_movements_created_idx").on(t.createdAt),
+    index("stock_movements_import_idx").on(t.importId),
+    index("stock_movements_order_idx").on(t.orderId),
+  ],
+);
+
 // ---------------------------------------------------------------------------
 // Orders (purchase orders, no online payment)
 // ---------------------------------------------------------------------------
@@ -172,18 +250,25 @@ export const orderStatusEnum = pgEnum("order_status", [
   "expired", // confirmation link never clicked; reservation released
 ]);
 
+export const orderChannelEnum = pgEnum("order_channel", [
+  "web", // placed on the storefront, confirmed by email
+  "in_store", // rung up at the counter from a Delver scan; born completed
+]);
+
 export const orders = pgTable(
   "orders",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     /** Short human-friendly code shown to customer and admin, e.g. "NE-A7K3F2". */
     publicCode: text("public_code").notNull().unique(),
-    email: text("email").notNull(),
+    channel: orderChannelEnum("channel").notNull().default("web"),
+    /** Required for web orders; in-store sales may be anonymous. */
+    email: text("email"),
     customerName: text("customer_name"),
     phone: text("phone"),
     status: orderStatusEnum("status").notNull().default("pending_confirmation"),
-    /** Random token for the email confirmation link. */
-    confirmationToken: text("confirmation_token").notNull().unique(),
+    /** Random token for the email confirmation link (web orders only). */
+    confirmationToken: text("confirmation_token").unique(),
     /** Snapshots taken at submission time. */
     fxRateUyuPerUsd: numeric("fx_rate_uyu_per_usd", { precision: 10, scale: 4 }),
     priceMultiplier: numeric("price_multiplier", { precision: 6, scale: 3 }).notNull(),
@@ -208,6 +293,7 @@ export const orders = pgTable(
   (t) => [
     index("orders_status_idx").on(t.status),
     index("orders_created_idx").on(t.createdAt),
+    index("orders_channel_idx").on(t.channel, t.createdAt),
   ],
 );
 

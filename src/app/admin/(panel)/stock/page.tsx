@@ -14,6 +14,7 @@ import { normalizeName } from "@/lib/normalize";
 import { formatUsd } from "@/lib/pricing";
 import { getPricingContext } from "@/lib/settings";
 import { computeUnitPriceUsd } from "@/lib/pricing";
+import { setStockQuantity } from "@/lib/stock";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: `${M.admin.stock.title} — ${M.storeName}` };
@@ -62,19 +63,24 @@ async function updateStockAction(formData: FormData) {
   await requireAdmin();
   const id = String(formData.get("id"));
   const quantity = Math.max(parseInt(String(formData.get("quantity")), 10) || 0, 0);
+  const expected = parseInt(String(formData.get("expected")), 10);
   const overrideRaw = String(formData.get("override") ?? "").trim().replace(",", ".");
   const override = overrideRaw === "" ? null : Number(overrideRaw);
-  await db
-    .update(stock)
-    .set({
-      quantity,
-      priceOverrideUsd:
-        override != null && Number.isFinite(override) && override > 0
-          ? override.toFixed(2)
-          : null,
-      updatedAt: new Date(),
-    })
-    .where(eq(stock.id, id));
+  await db.transaction(async (tx) => {
+    await setStockQuantity(tx, id, quantity, Number.isFinite(expected) ? expected : null, {
+      reason: "manual_adjust",
+    });
+    await tx
+      .update(stock)
+      .set({
+        priceOverrideUsd:
+          override != null && Number.isFinite(override) && override > 0
+            ? override.toFixed(2)
+            : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(stock.id, id));
+  });
   revalidatePath("/admin/stock");
 }
 
@@ -266,6 +272,7 @@ export default async function AdminStockPage({
                     <td className="font-price px-4 py-2 text-right" colSpan={1}>
                       <form action={updateStockAction} className="flex items-center justify-end gap-2" id={`f-${r.id}`}>
                         <input type="hidden" name="id" value={r.id as string} />
+                        <input type="hidden" name="expected" value={r.quantity as number} />
                         <input
                           type="number"
                           name="quantity"

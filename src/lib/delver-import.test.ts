@@ -5,7 +5,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { db, pool } from "@/db";
-import { cards, games, orderItems, orders, prices, printings, stock } from "@/db/schema";
+import { cards, games, orderItems, orders, prices, printings, stock, stockMovements } from "@/db/schema";
 import { completeOrder, confirmOrder, createOrder } from "./orders";
 import { applyDelverImport, parseDelverCsv } from "./delver-import";
 import { pendingDelverCopies, pendingDelverLines } from "./delver-report";
@@ -92,6 +92,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  for (const id of printingIds) {
+    await db.delete(stockMovements).where(eq(stockMovements.printingId, id));
+  }
   for (const id of createdOrders) {
     await db.delete(orderItems).where(eq(orderItems.orderId, id));
     await db.delete(orders).where(eq(orders.id, id));

@@ -47,12 +47,12 @@ browser preview, commit, Status table updated.
 - [x] Remove condition from **all** emails (`src/lib/email-templates.ts`: drop `showCondition`).
 
 ### P1 — Data foundation
-- [ ] Migration: `stock_movements` (id, stock_id FK, delta int, qty_after int, reason enum `import_add|import_replace|import_undo|manual_adjust|manual_add|web_order|in_store_sale|correction`, import_id?, order_id?, note, created_at). Index (stock_id, created_at), (created_at).
-- [ ] Migration: `stock_imports` (id, kind `add|replace`, status `previewed|applied|undone|discarded`, filename, rows jsonb, summary jsonb, created_at, applied_at, undone_at).
-- [ ] Migration: `order_channel` enum + `orders.channel` default `web`; `orders.email`, `orders.confirmation_token` nullable; `orders.note`/customer fields reuse existing.
-- [ ] `src/lib/stock.ts`: `applyStockDelta(tx, …)`, `setStockQuantity(tx, …, expected)`, `upsertStockAndAdd(tx, …)`; all writing movements.
-- [ ] Route existing writers through it: `delver-import.ts`, `orders.ts#completeOrder`, admin stock page action, `api/admin/stock`.
-- [ ] Tests for the helper + existing tests still green.
+- [x] Migration: `stock_movements` (id, stock_id FK, delta int, qty_after int, reason enum `import_add|import_replace|import_undo|manual_adjust|manual_add|web_order|in_store_sale|correction`, import_id?, order_id?, note, created_at). Index (stock_id, created_at), (created_at).
+- [x] Migration: `stock_imports` (id, kind `add|replace`, status `previewed|applied|undone|discarded`, filename, rows jsonb, summary jsonb, created_at, applied_at, undone_at).
+- [x] Migration: `order_channel` enum + `orders.channel` default `web`; `orders.email`, `orders.confirmation_token` nullable; `orders.note`/customer fields reuse existing.
+- [x] `src/lib/stock.ts`: `applyStockDelta(tx, …)`, `setStockQuantity(tx, …, expected)`, `upsertStockAndAdd(tx, …)`; all writing movements.
+- [x] Route existing writers through it: `delver-import.ts`, `orders.ts#completeOrder`, admin stock page action, `api/admin/stock`.
+- [x] Tests for the helper + existing tests still green.
 
 ### P2 — Stock management UI
 - [ ] `/admin/stock` rewrite: filters (text, game, set, finish, language, condition, availability: con stock / sin stock / reservadas), sort (name, set, qty, price, updated), pagination (no 500 cap), result count.
@@ -93,7 +93,7 @@ browser preview, commit, Status table updated.
 | Phase | State | Notes |
 |-------|-------|-------|
 | P0 | done | |
-| P1 | not started | |
+| P1 | done | migration 0006; `src/lib/stock.ts`; fixtures in `src/test/fixtures.ts`. Interim: a stale/below-reserved edit on the old stock page throws to the error page until P2 replaces it. |
 | P2 | not started | |
 | P3 | not started | |
 | P4 | not started | |
@@ -106,3 +106,4 @@ browser preview, commit, Status table updated.
 
 ## Session log
 - 2026-09-27 — Explored codebase, wrote this plan, P0 done.
+- 2026-09-27 — P1 done. Notes: replace-import now clamps rows to their reserved count (was: dropped to 0, breaking `quantity >= reserved`). `completeOrder`/`cancelOrder` lock the order row; `completeOrder` is idempotent. Dev tip: `npx tsx .local/clean-tests.mts` wipes leftover test fixtures if a test run dies before teardown.

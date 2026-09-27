@@ -56,7 +56,8 @@ export async function POST(req: NextRequest) {
     .where(eq(orderItems.orderId, result.orderId));
   try {
     const mail = confirmationEmail(order, items, env("SITE_URL", "http://localhost:3000"));
-    await sendMail({ to: order.email, ...mail });
+    // Web orders always carry the email they were placed with.
+    await sendMail({ to: order.email!, ...mail });
   } catch (err) {
     console.error("Failed to send confirmation email", err);
     return NextResponse.json(

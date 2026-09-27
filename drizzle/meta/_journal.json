@@ -43,6 +43,13 @@
       "when": 1790074109214,
       "tag": "0005_glorious_marvel_zombies",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790491020279,
+      "tag": "0006_stock_ledger",
+      "breakpoints": true
     }
   ]
 }
