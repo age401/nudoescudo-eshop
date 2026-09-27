@@ -29,7 +29,7 @@ const FILE_RE = /^[\w.-]+\.sql\.gz$/;
 
 export function backupDir(): string | null {
   const dir = process.env.BACKUP_DIR?.trim();
-  return dir ? path.resolve(dir) : null;
+  return dir ? path.resolve(/*turbopackIgnore: true*/ dir) : null;
 }
 
 export async function listBackups(): Promise<{ configured: boolean; files: BackupFile[] }> {
@@ -39,14 +39,14 @@ export async function listBackups(): Promise<{ configured: boolean; files: Backu
   for (const kind of BACKUP_KINDS) {
     let names: string[];
     try {
-      names = await fs.readdir(path.join(dir, kind));
+      names = await fs.readdir(/*turbopackIgnore: true*/ path.join(/*turbopackIgnore: true*/ dir, kind));
     } catch {
       continue;
     }
     for (const name of names) {
       // Skip the "-latest" symlinks: they duplicate a dated file.
       if (!FILE_RE.test(name) || name.includes("-latest")) continue;
-      const stat = await fs.stat(path.join(dir, kind, name)).catch(() => null);
+      const stat = await fs.stat(/*turbopackIgnore: true*/ path.join(/*turbopackIgnore: true*/ dir, kind, name)).catch(() => null);
       if (!stat?.isFile()) continue;
       files.push({ kind, name, rel: `${kind}/${name}`, size: stat.size, modifiedAt: stat.mtime });
     }
@@ -78,7 +78,7 @@ export function resolveBackup(rel: string): string | null {
   if (rest.length || !BACKUP_KINDS.includes(kind as BackupKind) || !name || !FILE_RE.test(name)) {
     return null;
   }
-  const full = path.resolve(dir, kind, name);
+  const full = path.resolve(/*turbopackIgnore: true*/ dir, kind, name);
   return full.startsWith(dir + path.sep) ? full : null;
 }
 
@@ -96,7 +96,7 @@ export function formatBytes(n: number): string {
 export async function offsiteStatus(): Promise<{ at: Date; remote: string; ageHours: number } | null> {
   const dir = backupDir();
   if (!dir) return null;
-  const text = await fs.readFile(path.join(dir, ".offsite-last-ok"), "utf8").catch(() => null);
+  const text = await fs.readFile(/*turbopackIgnore: true*/ path.join(/*turbopackIgnore: true*/ dir, ".offsite-last-ok"), "utf8").catch(() => null);
   if (!text) return null;
   const [iso, ...remote] = text.trim().split(/\s+/);
   const at = new Date(iso);

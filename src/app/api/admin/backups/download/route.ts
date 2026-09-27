@@ -11,11 +11,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const file = resolveBackup(req.nextUrl.searchParams.get("f") ?? "");
-  const stat = file ? await fs.promises.stat(file).catch(() => null) : null;
+  const stat = file ? await fs.promises.stat(/*turbopackIgnore: true*/ file).catch(() => null) : null;
   if (!file || !stat?.isFile()) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
-  const body = Readable.toWeb(fs.createReadStream(file)) as ReadableStream;
+  const body = Readable.toWeb(fs.createReadStream(/*turbopackIgnore: true*/ file)) as ReadableStream;
   return new NextResponse(body, {
     headers: {
       "Content-Type": "application/gzip",

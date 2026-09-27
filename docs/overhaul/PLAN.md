@@ -87,7 +87,9 @@ browser preview, commit, Status table updated.
 
 - [ ] **Server setup (user, once):** create the B2 bucket + key, `rclone config`, install the two scripts and the cron line — steps in `docs/runbook-mantenimiento.md`. Run the restore test once after the first deploy.
 ### P6 — Docs, QA, release
-- [ ] `docs/guia-operacion.md` rewritten for the new workflows (Spanish, operator-facing).
+- [x] `docs/guia-operacion.md` rewritten for the new workflows (Spanish, operator-facing); README updated.
+- [x] `deploy/staging-refresh-db.sh`: skip `stock_movements` data (its rows reference the orders that aren't copied). **Re-install the script on the server** (`/usr/local/sbin/nudoescudo-staging-refresh-db.sh`).
+- [x] `next build` passes; backups code no longer triggers whole-project NFT tracing (remaining warnings come from `src/lib/env.ts`, pre-existing).
 - [ ] Full manual QA on staging with a real Delver file (import add, replace w/ undo, in-store sale with a wrong edition).
 - [ ] PR `staging` → `master`.
 
@@ -101,7 +103,7 @@ browser preview, commit, Status table updated.
 | P3 | done | `src/lib/stock-import.ts` (+tests); UI in `stock/importar/` + `components/admin/ImportForms.tsx`. Replace phrase: `REEMPLAZAR TODO EL STOCK` (paste blocked, value uppercased). |
 | P4 | done | `src/lib/in-store.ts` (+tests incl. Serra Angel case), `components/admin/InStoreSale.tsx`, `/admin/venta`. Idempotency: in-store orders store `in_store:<requestId>` in `confirmation_token`. |
 | P5 | done (code) | `src/lib/backups.ts`, `/admin/respaldos`, download route, `deploy/backup-offsite.sh` (rclone copy, provider-agnostic, recommended B2), `deploy/backup-restore-test.sh`. Pending: one-time server setup by the user. |
-| P6 | not started | |
+| P6 | in progress | Docs + build done. Remaining: merge to `staging`, QA on staging with a real Delver file, then PR to `master`. |
 
 ## Open questions for the user
 - Off-site backup destination: recommended Backblaze B2 (script is rclone-based, so R2/Drive also work). Needs the user to create the account + run the setup.
@@ -114,3 +116,4 @@ browser preview, commit, Status table updated.
 - 2026-09-27 — P3 done, verified in browser (add preview→apply, replace impact→guard→apply→undo restored stock). Dev tip: the built-in browser has no file upload; inject a `File` via `DataTransfer` into the input and `requestSubmit()`.
 - 2026-09-27 — P4 done, verified in browser with real catalog printings (wrong-edition suggestion, skip, price guard, confirm, void).
 - 2026-09-27 — P5 done (code). Checked prodrigestivill image: default POSTGRES_EXTRA_OPTS is now `-Z1` (whole DB) — pinned it explicitly since old versions defaulted to `--schema=public`, which isn't restorable.
+- 2026-09-27 — P6: docs, staging-refresh fix, build clean. Branch ready to merge into `staging` (awaiting user go-ahead to push, since that deploys).
