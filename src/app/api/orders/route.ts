@@ -11,7 +11,8 @@ import { createOrder } from "@/lib/orders";
 
 const Body = z.object({
   email: z.string().email(),
-  customerName: z.string().trim().max(120).optional(),
+  // Required: the shop needs to know who is picking up the order.
+  customerName: z.string().trim().min(2).max(120),
   // Required: the shop coordinates delivery and payment by phone.
   phone: z.string().trim().min(6).max(40),
   items: z
@@ -56,7 +57,8 @@ export async function POST(req: NextRequest) {
     .where(eq(orderItems.orderId, result.orderId));
   try {
     const mail = confirmationEmail(order, items, env("SITE_URL", "http://localhost:3000"));
-    await sendMail({ to: order.email, ...mail });
+    // Web orders always carry the email they were placed with.
+    await sendMail({ to: order.email!, ...mail });
   } catch (err) {
     console.error("Failed to send confirmation email", err);
     return NextResponse.json(

@@ -7,7 +7,8 @@ por email (sin pago online), pensada para una tienda física en Uruguay.
 - **Precios MTG**: Card Kingdom, vía los archivos diarios de MTGJSON.
 - **Catálogo Pokémon**: TCGdex. **Precios Pokémon**: TCGplayer (vía TCGdex).
 - **Moneda**: US$ con conversión diaria a $U (pesos uruguayos).
-- **Stock**: importación del CSV de Delver Lens (con Scryfall ID) + carga manual.
+- **Stock**: se gestiona en el panel (filtros, ajustes con historial, CSV). Delver Lens (CSV con Scryfall ID) se usa para agregar cartas nuevas y para ventas en tienda con sugerencias de edición; reemplazo total protegido.
+- **Respaldos**: pg_dump nocturno visible en el panel + copia fuera del servidor con rclone (ver runbook).
 - **Pedidos**: el cliente confirma por enlace de email; el stock queda reservado
   y se libera solo si no confirma. Panel de administración en `/admin`.
 

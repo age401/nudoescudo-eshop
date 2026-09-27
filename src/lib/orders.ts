@@ -4,6 +4,7 @@ import { cards, games, orderItems, orders, prices, printings, stock } from "@/db
 import { compareCondition, poolKey } from "@/lib/conditions";
 import { getPricingContext, getSetting } from "@/lib/settings";
 import { computeUnitPriceUsd, round2, usdToUyu } from "@/lib/pricing";
+import { applyStockDelta } from "@/lib/stock";
 import { orderCode, randomToken } from "@/lib/tokens";
 
 /**
@@ -235,19 +236,29 @@ export async function confirmOrder(token: string): Promise<ConfirmResult> {
   return { status: "confirmed", order: updated };
 }
 
-/** Admin: hand-over done. Decrements physical stock and closes the order. */
+/**
+ * Admin: hand-over done. Decrements physical stock and closes the order.
+ * Idempotent: a double-submitted form must not take the cards out twice.
+ */
 export async function completeOrder(orderId: string): Promise<void> {
   await db.transaction(async (tx) => {
+    const [order] = await tx
+      .select({ status: orders.status })
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .for("update");
+    if (!order || (order.status !== "pending_confirmation" && order.status !== "confirmed")) {
+      return;
+    }
     const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
     for (const item of items) {
-      await tx
-        .update(stock)
-        .set({
-          quantity: sql`greatest(${stock.quantity} - ${item.quantity}, 0)`,
-          reserved: sql`greatest(${stock.reserved} - ${item.quantity}, 0)`,
-          updatedAt: new Date(),
-        })
-        .where(eq(stock.id, item.stockId));
+      await applyStockDelta(
+        tx,
+        item.stockId,
+        -item.quantity,
+        { reason: "web_order", orderId },
+        { releaseReserved: item.quantity, clampAtZero: true },
+      );
     }
     await tx
       .update(orders)
@@ -259,7 +270,7 @@ export async function completeOrder(orderId: string): Promise<void> {
 /** Admin: cancel and release the reservation. */
 export async function cancelOrder(orderId: string): Promise<void> {
   await db.transaction(async (tx) => {
-    const [order] = await tx.select().from(orders).where(eq(orders.id, orderId));
+    const [order] = await tx.select().from(orders).where(eq(orders.id, orderId)).for("update");
     if (!order) return;
     // Only orders that still hold a reservation need to release stock.
     if (order.status === "pending_confirmation" || order.status === "confirmed") {

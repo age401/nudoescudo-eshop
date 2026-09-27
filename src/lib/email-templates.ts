@@ -17,13 +17,12 @@ function esc(s: string): string {
 }
 
 /**
- * @param showCondition Condition grades are internal: only the shop's own
- * notification lists them, never the customer's copy.
+ * Condition grades are internal and never appear in any email. One pool can
+ * be filled from several grades, which stores one order item per grade;
+ * without the grades on show those rows would look like duplicates, so fold
+ * together everything a reader cannot tell apart.
  */
-function itemsTable(items: Item[], showCondition: boolean): string {
-  // One pool can be filled from several condition grades, which stores one
-  // order item per grade. Without the grades on show those rows would look
-  // like duplicates, so fold together everything a reader cannot tell apart.
+function itemsTable(items: Item[]): string {
   const grouped: Item[] = [];
   const byKey = new Map<string, Item>();
   for (const i of items) {
@@ -33,7 +32,6 @@ function itemsTable(items: Item[], showCondition: boolean): string {
       i.finish,
       i.language,
       i.unitPriceUsd,
-      showCondition ? i.condition : "",
     ].join("|");
     const existing = byKey.get(key);
     if (existing) {
@@ -52,7 +50,7 @@ function itemsTable(items: Item[], showCondition: boolean): string {
         <td style="padding:8px 12px;border-bottom:1px solid #e8e3d8;">
           <strong>${esc(i.cardName)}</strong><br>
           <span style="color:#6b756e;font-size:13px;">
-            ${esc(i.setName)} · ${FINISH_ES[i.finish] ?? i.finish}${showCondition ? ` · ${esc(i.condition)}` : ""} · ${esc(i.language.toUpperCase())}
+            ${esc(i.setName)} · ${FINISH_ES[i.finish] ?? i.finish} · ${esc(i.language.toUpperCase())}
           </span>
         </td>
         <td style="padding:8px 12px;border-bottom:1px solid #e8e3d8;text-align:center;">${i.quantity}</td>
@@ -109,7 +107,7 @@ export function confirmationEmail(order: Order, items: Item[], siteUrl: string) 
       </a>
     </p>
     <p style="color:#6b756e;font-size:13px;">Si el botón no funciona, copiá este enlace: <br><a href="${link}">${link}</a></p>
-    ${itemsTable(items, false)}
+    ${itemsTable(items)}
     ${totals(order)}
     <p style="color:#6b756e;font-size:13px;">
       El pedido queda reservado hasta que lo confirmes. Si no lo confirmás, la reserva se libera automáticamente.
@@ -123,8 +121,8 @@ export function confirmationEmail(order: Order, items: Item[], siteUrl: string) 
 
 export function adminNewOrderEmail(order: Order, items: Item[], siteUrl: string) {
   const body = `
-    <p><strong>${esc(order.email)}</strong>${order.customerName ? ` (${esc(order.customerName)})` : ""}${order.phone ? ` · Tel: ${esc(order.phone)}` : ""} confirmó un pedido.</p>
-    ${itemsTable(items, true)}
+    <p><strong>${esc(order.email ?? "")}</strong>${order.customerName ? ` (${esc(order.customerName)})` : ""}${order.phone ? ` · Tel: ${esc(order.phone)}` : ""} confirmó un pedido.</p>
+    ${itemsTable(items)}
     ${totals(order)}
     <p style="text-align:center;margin:24px 0;">
       <a href="${siteUrl}/admin/pedidos/${order.id}" style="background:#0f3527;color:#faf7f1;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;display:inline-block;">

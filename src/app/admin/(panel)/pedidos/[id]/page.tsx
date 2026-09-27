@@ -7,10 +7,12 @@ import { cards, orderItems, orders, printings, stock } from "@/db/schema";
 import { AdminOrderItems } from "@/components/AdminOrderItems";
 import { requireAdmin } from "@/lib/admin-auth";
 import { M } from "@/lib/messages";
+import { voidCompletedOrder } from "@/lib/in-store";
 import { cancelOrder, completeOrder } from "@/lib/orders";
 import { formatUsd } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: `${M.admin.orders.title} — ${M.storeName}` };
 
 async function completeAction(formData: FormData) {
   "use server";
@@ -28,6 +30,15 @@ async function cancelAction(formData: FormData) {
   redirect("/admin/pedidos");
 }
 
+async function voidAction(formData: FormData) {
+  "use server";
+  await requireAdmin();
+  const id = String(formData.get("id"));
+  await voidCompletedOrder(id, String(formData.get("reason") ?? "").trim() || undefined);
+  revalidatePath("/admin", "layout");
+  redirect(`/admin/pedidos/${id}`);
+}
+
 async function saveNoteAction(formData: FormData) {
   "use server";
   await requireAdmin();
@@ -41,10 +52,13 @@ async function saveNoteAction(formData: FormData) {
 
 export default async function AdminOrderDetail({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ venta?: string }>;
 }) {
   const { id } = await params;
+  const { venta } = await searchParams;
   const order = await db.query.orders.findFirst({ where: eq(orders.id, id) });
   if (!order) notFound();
 
@@ -84,17 +98,32 @@ export default async function AdminOrderDetail({
   }));
   const O = M.admin.orders;
   const active = order.status === "pending_confirmation" || order.status === "confirmed";
+  const inStore = order.channel === "in_store";
 
   return (
     <div>
-      <Link href="/admin/pedidos" className="text-sm text-ink-faint hover:text-ink">
-        ← {O.title}
+      {venta === "ok" && inStore && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-felt/10 px-4 py-3">
+          <p className="text-sm font-medium text-felt">✓ {M.admin.sale.done(order.publicCode)}</p>
+          <Link
+            href="/admin/venta"
+            className="rounded-lg bg-felt px-4 py-2 text-sm font-semibold text-paper hover:bg-felt-soft"
+          >
+            {M.admin.sale.newSale}
+          </Link>
+        </div>
+      )}
+      <Link href={inStore ? "/admin/pedidos?filtro=tienda" : "/admin/pedidos"} className="text-sm text-ink-faint hover:text-ink">
+        ← {inStore ? O.filterInStore : O.title}
       </Link>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-display text-2xl font-semibold">
           <span className="font-price">{order.publicCode}</span>
           <span className="ml-3 align-middle rounded-full bg-paper-dim px-3 py-1 text-sm font-medium">
             {M.orderStatus.statusNames[order.status]}
+          </span>
+          <span className="ml-2 align-middle rounded-full border border-ink/15 px-3 py-1 text-sm font-medium text-ink-soft">
+            {O.channel[order.channel]}
           </span>
         </h2>
         {active && (
@@ -136,11 +165,15 @@ export default async function AdminOrderDetail({
         <div className="space-y-4">
           <div className="rounded-xl border border-ink/10 bg-white p-4 text-sm">
             <p className="font-semibold">{O.contact}</p>
-            <p className="mt-2">
-              <a href={`mailto:${order.email}`} className="text-felt hover:underline">
-                {order.email}
-              </a>
-            </p>
+            {order.email ? (
+              <p className="mt-2">
+                <a href={`mailto:${order.email}`} className="text-felt hover:underline">
+                  {order.email}
+                </a>
+              </p>
+            ) : (
+              !order.customerName && <p className="mt-2 text-ink-soft">{O.inStoreCustomer}</p>
+            )}
             {order.customerName && <p className="mt-1">{order.customerName}</p>}
             {order.phone && <p className="mt-1">{order.phone}</p>}
             <p className="mt-3 text-xs text-ink-faint">
@@ -149,6 +182,29 @@ export default async function AdminOrderDetail({
                 ` · Confirmado: ${order.confirmedAt.toLocaleString("es-UY")}`}
             </p>
           </div>
+
+          {order.status === "completed" && (
+            <details className="rounded-xl border border-danger/30 bg-white p-4 text-sm">
+              <summary className="cursor-pointer font-semibold text-danger">{O.voidSale}…</summary>
+              <p className="mt-2 text-xs text-ink-soft">{O.voidHelp}</p>
+              <form action={voidAction} className="mt-3 space-y-2">
+                <input type="hidden" name="id" value={order.id} />
+                <input
+                  type="text"
+                  name="reason"
+                  placeholder={O.voidReason}
+                  maxLength={300}
+                  className="w-full rounded-lg border border-ink/15 px-3 py-2"
+                />
+                <button
+                  type="submit"
+                  className="rounded-lg bg-danger px-4 py-2 text-xs font-semibold text-paper hover:opacity-90"
+                >
+                  {O.voidSale}
+                </button>
+              </form>
+            </details>
+          )}
 
           <form action={saveNoteAction} className="rounded-xl border border-ink/10 bg-white p-4">
             <input type="hidden" name="id" value={order.id} />

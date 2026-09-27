@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { stock } from "@/db/schema";
 import { isAdmin } from "@/lib/admin-auth";
 import { ensurePokemonCardColors } from "@/lib/catalog";
+import { addStockCopies } from "@/lib/stock";
 
 const Body = z.object({
   printingId: z.string().uuid(),
@@ -25,26 +24,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
   const d = parsed.data;
-  await db
-    .insert(stock)
-    .values({
-      printingId: d.printingId,
-      finish: d.finish,
-      condition: d.condition,
-      language: d.language.toLowerCase(),
-      quantity: d.quantity,
-      priceOverrideUsd: d.priceOverrideUsd != null ? d.priceOverrideUsd.toFixed(2) : null,
-    })
-    .onConflictDoUpdate({
-      target: [stock.printingId, stock.finish, stock.condition, stock.language],
-      set: {
-        quantity: sql`${stock.quantity} + ${d.quantity}`,
-        ...(d.priceOverrideUsd != null
-          ? { priceOverrideUsd: d.priceOverrideUsd.toFixed(2) }
-          : {}),
-        updatedAt: new Date(),
+  await db.transaction((tx) =>
+    addStockCopies(
+      tx,
+      {
+        printingId: d.printingId,
+        finish: d.finish,
+        condition: d.condition,
+        language: d.language.toLowerCase(),
       },
-    });
+      d.quantity,
+      { reason: "manual_add" },
+      { priceOverrideUsd: d.priceOverrideUsd != null ? d.priceOverrideUsd.toFixed(2) : null },
+    ),
+  );
 
   // Lazily fill in Pokemon energy types for the catalog color filter. Never
   // let a TCGdex hiccup block adding stock.

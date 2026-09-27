@@ -3,8 +3,9 @@ import { revalidatePath } from "next/cache";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { requireAdmin } from "@/lib/admin-auth";
-import { pendingDelverCopies } from "@/lib/delver-report";
 import { M } from "@/lib/messages";
+import { backupHealth } from "@/lib/backups";
+import { formatUsd } from "@/lib/pricing";
 import { getPricingContext } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +45,11 @@ export default async function AdminDashboard() {
         (select count(*) from orders where status = 'confirmed' and seen_by_admin = false)::int as new_orders,
         (select count(*) from orders where status in ('pending_confirmation','confirmed'))::int as active_orders,
         (select count(distinct printing_id) from stock where quantity - reserved > 0)::int as stocked_printings,
-        (select coalesce(sum(quantity - reserved), 0) from stock)::int as total_copies
+        (select coalesce(sum(quantity - reserved), 0) from stock)::int as total_copies,
+        (select count(*) from orders where channel = 'in_store' and status = 'completed'
+           and created_at >= (date_trunc('day', now() at time zone 'America/Montevideo') at time zone 'America/Montevideo'))::int as store_today,
+        (select coalesce(sum(total_usd), 0) from orders where channel = 'in_store' and status = 'completed'
+           and created_at >= (date_trunc('day', now() at time zone 'America/Montevideo') at time zone 'America/Montevideo'))::float as store_today_usd
     `)
   ).rows as Record<string, number>[];
 
@@ -64,21 +69,33 @@ export default async function AdminDashboard() {
   }[];
 
   const pricing = await getPricingContext();
-  const delverPending = await pendingDelverCopies();
+  const backups = await backupHealth();
   const D = M.admin.dashboard;
 
   const cards: [string, string, string][] = [
     [D.newOrders, String(stats.new_orders), "/admin/pedidos"],
     [D.activeOrders, String(stats.active_orders), "/admin/pedidos"],
+    [
+      D.inStoreToday,
+      stats.store_today ? `${stats.store_today} · ${formatUsd(stats.store_today_usd)}` : "0",
+      "/admin/pedidos?filtro=tienda",
+    ],
     [D.stockCards, String(stats.stocked_printings), "/admin/stock"],
     [D.stockValue, String(stats.total_copies), "/admin/stock"],
-    [D.delverPending, String(delverPending), "/admin/vendidas"],
     [D.fxRate, pricing.fxRate ? pricing.fxRate.toFixed(2) : "—", "/admin/configuracion"],
     [D.multiplier, `× ${pricing.multiplier}`, "/admin/configuracion"],
   ];
 
   return (
     <div>
+      {(backups.state === "stale" || backups.state === "missing") && (
+        <Link
+          href="/admin/respaldos"
+          className="mb-4 block rounded-xl border border-danger/40 bg-danger/5 px-4 py-3 text-sm font-medium text-danger hover:bg-danger/10"
+        >
+          ⚠ {M.admin.backups.dashboardWarning} →
+        </Link>
+      )}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {cards.map(([label, value, href]) => (
           <Link
@@ -89,8 +106,7 @@ export default async function AdminDashboard() {
             <p className="text-xs text-ink-faint">{label}</p>
             <p
               className={`font-price mt-1 text-2xl font-semibold ${
-                (label === D.newOrders && stats.new_orders > 0) ||
-                (label === D.delverPending && delverPending > 0)
+                label === D.newOrders && stats.new_orders > 0
                   ? "text-danger"
                   : "text-felt"
               }`}

@@ -25,29 +25,90 @@ todo se hace desde el **panel de administración** en el navegador.
 > Si el cliente nunca confirma por email, no hay que hacer nada: el pedido
 > expira solo (por defecto a las 24 horas) y la reserva se libera.
 
-## Cargar stock desde Delver Lens (Magic)
+## El stock vive en la web
 
-1. En el teléfono, en Delver Lens: exportar la colección como **CSV** e incluir
-   el campo **Scryfall ID** (en la configuración de exportación). Con ese campo
-   el sistema reconoce cada carta sin errores.
-2. En el panel: **Stock → Importar desde Delver Lens**.
-3. Elegí el archivo y el modo:
-   - **Sumar al stock actual**: agrega lo del archivo a lo que ya hay
-     (para cargar cartas nuevas que escaneaste).
-   - **Reemplazar todo el stock**: borra las cantidades actuales y deja solo lo
-     del archivo (para cuando hacés un inventario completo).
-4. Tocá **“Vista previa”** primero: te dice cuántas filas se reconocen.
-5. Tocá **“Importar”**.
+El stock se maneja **en el panel**. Delver Lens se usa solo para dos cosas:
+**agregar cartas nuevas** y **registrar ventas en el mostrador**. Todo cambio
+de cantidad (importaciones, ajustes, pedidos web entregados, ventas en tienda)
+queda registrado en **Stock → Movimientos**.
 
-## Cargar stock de Pokémon (o ajustes sueltos de Magic)
+## Venta en el mostrador
+
+Cuando alguien trae cartas de las cajas:
+
+1. En Delver Lens, escaneá las cartas en una **lista nueva** y exportala como
+   **CSV** (con el campo **Scryfall ID**).
+2. En el panel: **Venta en tienda** → elegí el archivo → **“Revisar venta”**.
+3. Arriba aparecen en rojo las cartas que **necesitan revisión**:
+   - *No tenemos esa edición*: Delver a veces lee mal la edición. Si la carta
+     que tenés en la mano es una de las sugeridas (con foto), tocá **“Es
+     esta”**.
+   - *Reservada para un pedido web*: esa copia está prometida a un cliente
+     online. Tocá el código del pedido para verlo.
+   - Si la carta no está en el stock: **“No se vende”**.
+   Hasta que no resuelvas todas, no se puede confirmar.
+4. Abajo está la lista de la venta: podés cambiar cantidades y **precios**
+   (por ejemplo, redondear). Las cartas sin precio de referencia hay que
+   ponerles precio. Con “Agregar una carta del stock” sumás algo que no
+   escaneaste.
+5. Opcional: nombre del cliente y una nota. Tocá **“Confirmar venta”**. Las
+   cartas se descuentan del stock en ese momento.
+
+**Me equivoqué en una venta**: abrí la venta (Pedidos → Ventas en tienda) →
+**“Anular venta…”**. Las cartas vuelven al stock. Sirve también para pedidos
+web ya entregados que el cliente devuelve.
+
+## Agregar cartas nuevas (Magic, con Delver Lens)
+
+1. En Delver Lens, escaneá las cartas nuevas en una **lista aparte** y
+   exportala como **CSV** con el campo **Scryfall ID**.
+2. En el panel: **Stock → Importar de Delver → Agregar cartas nuevas**.
+3. Elegí el archivo y tocá **“Subir y revisar”**. Vas a ver cada carta con
+   cuántas hay ahora y cuántas va a haber. Las filas no reconocidas aparecen
+   aparte (suelen ser tokens o cartas muy nuevas).
+4. Tocá **“Confirmar y sumar”**.
+
+¿Te equivocaste de archivo? En el historial de importaciones, abrí la última y
+tocá **“Deshacer esta importación”**.
+
+### Reemplazar todo el stock (casi nunca)
+
+Solo para un inventario completo desde cero. Está al final de **Importar de
+Delver**, en la **zona peligrosa**: pone el stock de Magic exactamente igual al
+archivo y **se pierde todo lo que se cargó, vendió o ajustó en la web** y no
+esté en tu colección de Delver. Antes de aplicarlo te muestra cuántas copias
+desaparecen, te ofrece descargar el stock actual, y tenés que escribir
+`REEMPLAZAR TODO EL STOCK` para confirmar. Se puede deshacer mientras sea la
+última importación.
+
+## Mantener el stock (Stock → Inventario)
+
+- **Filtros**: nombre, juego, edición, acabado, estado, idioma y
+  disponibilidad (con stock / agotadas / con reservas). **Descargar CSV** baja
+  exactamente lo filtrado.
+- **Cambiar una cantidad**: usá **−/+** o escribí el número, opcionalmente el
+  motivo (“conteo”, “dañada”…), y **Guardar** (o Enter). Si mientras editabas
+  alguien compró esa carta, el panel te avisa en vez de pisar la venta.
+- La columna **Reserv.** son copias prometidas a pedidos web: la cantidad no
+  puede bajar de ahí.
+- **Historial** muestra todos los movimientos de esa fila.
+- Una fila en 0 que nunca se vendió se puede eliminar con la **✕**.
+
+## Cargar stock de Pokémon (o sueltas de Magic a mano)
 
 Delver Lens solo escanea Magic, así que el stock de Pokémon se carga a mano:
 
-1. En el panel: **Stock → Agregar stock manualmente**.
+1. En el panel: **Stock → Agregar stock manualmente** (arriba de la tabla).
 2. Buscá la carta por nombre, elegí la edición correcta.
 3. Elegí el **acabado** (Normal / Reverse Holo / Foil — fijate qué es
    físicamente la carta), el estado, el idioma y la cantidad.
 4. Tocá **“Agregar”**.
+
+## Respaldos
+
+En **Respaldos** ves las copias nocturnas de la base (y podés bajarlas) y si
+se están copiando fuera del servidor. Si algo falla, el panel lo avisa en
+**Inicio**. Detalles en `runbook-mantenimiento.md`.
 
 ## Precios
 
@@ -61,8 +122,8 @@ Delver Lens solo escanea Magic, así que el stock de Pokémon se carga a mano:
 ### Una carta dice “Consultar precio”
 
 Significa que la referencia no tiene precio para esa carta/acabado. Mientras
-diga eso, **no se puede comprar online**. Solución: en **Stock**, poné un
-**precio manual** (en US$) en esa fila y guardá. El precio manual siempre le
+diga eso, **no se puede comprar online**. Solución: en **Stock** (filtrá por
+nombre), poné un **precio manual** (en US$) en esa fila y guardá. El precio manual siempre le
 gana al automático.
 
 ### Quiero un precio distinto para una carta puntual

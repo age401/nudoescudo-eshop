@@ -5,7 +5,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { db, pool } from "@/db";
-import { cards, games, orderItems, orders, prices, printings, stock } from "@/db/schema";
+import { cards, games, orderItems, orders, prices, printings, stock, stockMovements } from "@/db/schema";
 import { cancelOrder, completeOrder, confirmOrder, createOrder } from "./orders";
 import { expireStaleOrders } from "@/jobs/order-expiry";
 
@@ -59,6 +59,7 @@ function poolItem(quantity: number) {
 }
 
 afterAll(async () => {
+  await db.delete(stockMovements).where(eq(stockMovements.printingId, printingId));
   for (const id of createdOrders) {
     await db.delete(orderItems).where(eq(orderItems.orderId, id));
     await db.delete(orders).where(eq(orders.id, id));

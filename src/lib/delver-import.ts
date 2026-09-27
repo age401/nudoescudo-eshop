@@ -12,6 +12,7 @@ import { parse } from "csv-parse/sync";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { cards, orderItems, printings, stock } from "@/db/schema";
+import { addStockCopies, setStockQuantity, type Tx } from "@/lib/stock";
 
 /**
  * Delver Lens only tracks Magic. Replace mode must therefore leave stock of
@@ -41,7 +42,14 @@ export type DelverRow = {
 
 export type ImportPreview = {
   rows: DelverRow[];
-  matched: { row: DelverRow; printingId: string; cardName: string; setName: string }[];
+  matched: {
+    row: DelverRow;
+    printingId: string;
+    cardName: string;
+    setName: string;
+    setCode: string;
+    collectorNumber: string;
+  }[];
   unmatched: DelverRow[];
 };
 
@@ -159,9 +167,13 @@ export async function previewDelverImport(text: string): Promise<ImportPreview> 
         .select({
           printingId: printings.id,
           externalId: printings.externalId,
+          cardName: cards.name,
           setName: printings.setName,
+          setCode: printings.setCode,
+          collectorNumber: printings.collectorNumber,
         })
         .from(printings)
+        .innerJoin(cards, sql`${cards.id} = ${printings.cardId}`)
         .where(sql`${printings.externalId} in ${ids}`)
     : [];
   const byExternal = new Map(found.map((f) => [f.externalId, f]));
@@ -174,8 +186,10 @@ export async function previewDelverImport(text: string): Promise<ImportPreview> 
       matched.push({
         row,
         printingId: hit.printingId,
-        cardName: row.name ?? "",
+        cardName: hit.cardName,
         setName: hit.setName,
+        setCode: hit.setCode,
+        collectorNumber: hit.collectorNumber,
       });
     } else {
       unmatched.push(row);
@@ -184,76 +198,130 @@ export async function previewDelverImport(text: string): Promise<ImportPreview> 
   return { rows, matched, unmatched };
 }
 
-/** Apply the import. Aggregates duplicate rows in the file first. */
+/** One variant to import: the file's rows for it, summed. */
+export type ImportLine = {
+  printingId: string;
+  finish: string;
+  condition: string;
+  language: string;
+  quantity: number;
+};
+
+/** Sums duplicate rows of the same variant (Delver lists copies separately). */
+export function aggregateMatched(matched: ImportPreview["matched"]): ImportLine[] {
+  const agg = new Map<string, ImportLine>();
+  for (const m of matched) {
+    const finish = m.row.foil ? "foil" : "nonfoil";
+    const key = `${m.printingId}|${finish}|${m.row.condition}|${m.row.language}`;
+    const cur = agg.get(key);
+    if (cur) cur.quantity += m.row.quantity;
+    else
+      agg.set(key, {
+        printingId: m.printingId,
+        finish,
+        condition: m.row.condition,
+        language: m.row.language,
+        quantity: m.row.quantity,
+      });
+  }
+  // A 0-quantity row adds nothing, but in replace mode it still means "none".
+  return [...agg.values()];
+}
+
+export type ApplyStats = {
+  /** Variants in the file. */
+  lines: number;
+  copiesAdded: number;
+  copiesRemoved: number;
+  /** Replace only: rows kept above the file's count because web orders hold them. */
+  keptForReservations: number;
+};
+
+/**
+ * Writes matched lines to stock through the ledger (src/lib/stock.ts).
+ *
+ * add     : adds each line's copies.
+ * replace : MTG stock becomes exactly the file. Rows the file omits drop to 0
+ *           — or to their reserved count, since those copies are promised to
+ *           web orders — and empty, never-sold rows are deleted.
+ */
+export async function applyImportLines(
+  tx: Tx,
+  lines: ImportLine[],
+  mode: "add" | "replace",
+  importId: string | null,
+): Promise<ApplyStats> {
+  const stats: ApplyStats = {
+    lines: lines.length,
+    copiesAdded: 0,
+    copiesRemoved: 0,
+    keptForReservations: 0,
+  };
+  const reason = mode === "replace" ? "import_replace" : "import_add";
+  const meta = { reason, importId } as const;
+
+  if (mode === "add") {
+    for (const l of lines) {
+      if (l.quantity <= 0) continue;
+      await addStockCopies(tx, l, l.quantity, meta);
+      stats.copiesAdded += l.quantity;
+    }
+    return stats;
+  }
+
+  const wanted = new Map(
+    lines.map((l) => [`${l.printingId}|${l.finish}|${l.condition}|${l.language}`, l]),
+  );
+  const existing = await tx
+    .select()
+    .from(stock)
+    .where(delverScope)
+    .for("update");
+  for (const row of existing) {
+    const key = `${row.printingId}|${row.finish}|${row.condition}|${row.language}`;
+    const target = wanted.get(key)?.quantity ?? 0;
+    wanted.delete(key);
+    const { delta, quantityAfter } = await setStockQuantity(tx, row.id, target, null, meta, {
+      clampToReserved: true,
+    });
+    if (quantityAfter > target) stats.keptForReservations++;
+    if (delta > 0) stats.copiesAdded += delta;
+    else stats.copiesRemoved -= delta;
+  }
+  for (const l of wanted.values()) {
+    if (l.quantity <= 0) continue;
+    await addStockCopies(tx, l, l.quantity, meta);
+    stats.copiesAdded += l.quantity;
+  }
+  // Drop rows that ended empty. Rows referenced by an order are kept at 0:
+  // order_items.stock_id has no cascade.
+  await tx.delete(stock).where(sql`
+    ${stock.quantity} = 0
+    and ${stock.reserved} = 0
+    and not exists (
+      select 1 from ${orderItems} where ${orderItems.stockId} = ${stock.id}
+    )
+    and ${delverScope}
+  `);
+  return stats;
+}
+
+/** Parse, match and apply in one go (CLI and tests). */
 export async function applyDelverImport(
   text: string,
   mode: "merge" | "replace",
 ): Promise<ImportResult> {
   const preview = await previewDelverImport(text);
-
-  // Aggregate by (printing, finish, condition, language).
-  const agg = new Map<string, { printingId: string; row: DelverRow; qty: number }>();
-  for (const m of preview.matched) {
-    const finish = m.row.foil ? "foil" : "nonfoil";
-    const key = `${m.printingId}|${finish}|${m.row.condition}|${m.row.language}`;
-    const cur = agg.get(key);
-    if (cur) cur.qty += m.row.quantity;
-    else agg.set(key, { printingId: m.printingId, row: m.row, qty: m.row.quantity });
-  }
-
-  await db.transaction(async (tx) => {
-    if (mode === "replace") {
-      // Reset quantities to 0 (keeps rows referenced by order_items intact),
-      // then set the new quantities below. Scoped to the game Delver exports.
-      await tx
-        .update(stock)
-        .set({ quantity: 0, updatedAt: new Date() })
-        .where(delverScope);
-    }
-    for (const { printingId, row, qty } of agg.values()) {
-      const finish = row.foil ? "foil" : "nonfoil";
-      await tx
-        .insert(stock)
-        .values({
-          printingId,
-          finish,
-          condition: row.condition,
-          language: row.language,
-          quantity: qty,
-        })
-        .onConflictDoUpdate({
-          target: [stock.printingId, stock.finish, stock.condition, stock.language],
-          set: {
-            quantity:
-              mode === "replace"
-                ? sql`${qty}`
-                : sql`${stock.quantity} + ${qty}`,
-            updatedAt: new Date(),
-          },
-        });
-    }
-    if (mode === "replace") {
-      // Drop rows that ended with no quantity and no reservations. Rows still
-      // referenced by an order are kept at quantity 0: order_items.stock_id is
-      // ON DELETE NO ACTION, so deleting them would abort the whole import
-      // (every sold-out card hits this once its order is completed).
-      await tx.delete(stock).where(sql`
-        ${stock.quantity} = 0
-        and ${stock.reserved} = 0
-        and not exists (
-          select 1 from ${orderItems} where ${orderItems.stockId} = ${stock.id}
-        )
-        and ${delverScope}
-      `);
-    }
-  });
-
+  const lines = aggregateMatched(preview.matched);
+  await db.transaction((tx) =>
+    applyImportLines(tx, lines, mode === "replace" ? "replace" : "add", null),
+  );
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(stock);
   return {
     mode,
-    imported: agg.size,
+    imported: lines.length,
     unmatched: preview.unmatched.length,
     stockRows: count,
   };

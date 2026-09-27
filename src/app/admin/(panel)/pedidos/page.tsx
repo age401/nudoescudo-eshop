@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { desc, inArray } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 import { M } from "@/lib/messages";
@@ -22,15 +22,17 @@ export default async function AdminOrdersPage({
   searchParams: Promise<{ filtro?: string }>;
 }) {
   const { filtro } = await searchParams;
-  const showAll = filtro === "todos";
+  const view = filtro === "todos" ? "all" : filtro === "tienda" ? "in_store" : "active";
 
   const rows = await db
     .select()
     .from(orders)
     .where(
-      showAll
+      view === "all"
         ? undefined
-        : inArray(orders.status, ["pending_confirmation", "confirmed"]),
+        : view === "in_store"
+          ? eq(orders.channel, "in_store")
+          : inArray(orders.status, ["pending_confirmation", "confirmed"]),
     )
     .orderBy(desc(orders.createdAt))
     .limit(200);
@@ -42,18 +44,21 @@ export default async function AdminOrdersPage({
       <div className="flex items-center justify-between">
         <h2 className="font-display text-lg font-semibold">{O.title}</h2>
         <div className="flex gap-1 text-sm">
-          <Link
-            href="/admin/pedidos"
-            className={`rounded-lg px-3 py-1.5 ${!showAll ? "bg-felt text-paper" : "text-ink-soft hover:bg-paper-dim"}`}
-          >
-            {O.filterActive}
-          </Link>
-          <Link
-            href="/admin/pedidos?filtro=todos"
-            className={`rounded-lg px-3 py-1.5 ${showAll ? "bg-felt text-paper" : "text-ink-soft hover:bg-paper-dim"}`}
-          >
-            {O.filterAll}
-          </Link>
+          {(
+            [
+              ["active", "/admin/pedidos", O.filterActive],
+              ["in_store", "/admin/pedidos?filtro=tienda", O.filterInStore],
+              ["all", "/admin/pedidos?filtro=todos", O.filterAll],
+            ] as const
+          ).map(([key, href, label]) => (
+            <Link
+              key={key}
+              href={href}
+              className={`rounded-lg px-3 py-1.5 ${view === key ? "bg-felt text-paper" : "text-ink-soft hover:bg-paper-dim"}`}
+            >
+              {label}
+            </Link>
+          ))}
         </div>
       </div>
 
@@ -78,6 +83,11 @@ export default async function AdminOrdersPage({
                     <Link href={`/admin/pedidos/${o.id}`} className="font-price font-semibold text-felt hover:underline">
                       {o.publicCode}
                     </Link>
+                    {o.channel === "in_store" && (
+                      <span className="ml-2 rounded bg-paper-dim px-1.5 py-0.5 text-[10px] font-semibold uppercase text-ink-soft">
+                        {O.channel.in_store}
+                      </span>
+                    )}
                     {o.status === "confirmed" && !o.seenByAdmin && (
                       <span className="ml-2 rounded-full bg-danger px-2 py-0.5 text-[10px] font-bold text-white">
                         {O.new}
@@ -85,8 +95,12 @@ export default async function AdminOrdersPage({
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {o.customerName ? `${o.customerName} · ` : ""}
-                    <span className="text-ink-soft">{o.email}</span>
+                    {o.customerName ? `${o.customerName}${o.email ? " · " : ""}` : ""}
+                    {o.email ? (
+                      <span className="text-ink-soft">{o.email}</span>
+                    ) : (
+                      !o.customerName && <span className="text-ink-faint">{O.inStoreCustomer}</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-ink-faint">
                     {o.createdAt.toLocaleString("es-UY", { dateStyle: "short", timeStyle: "short" })}

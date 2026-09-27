@@ -5,10 +5,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { db, pool } from "@/db";
-import { cards, games, orderItems, orders, prices, printings, stock } from "@/db/schema";
+import { cards, orderItems, orders, prices, printings, stock, stockMovements } from "@/db/schema";
 import { completeOrder, confirmOrder, createOrder } from "./orders";
 import { applyDelverImport, parseDelverCsv } from "./delver-import";
-import { pendingDelverCopies, pendingDelverLines } from "./delver-report";
 
 /** A Delver export listing `ids`, one copy each. */
 function csvFor(ids: string[]): string {
@@ -21,7 +20,7 @@ function csvFor(ids: string[]): string {
 // mtgSold is sold via an order; mtgKept stays in the Delver file.
 let mtgSoldExt: string, mtgKeptExt: string, pokeExt: string;
 let mtgSoldStockId: string, mtgKeptStockId: string, pokeStockId: string;
-let mtgSoldPrintingId: string, pokePrintingId: string;
+let mtgSoldPrintingId: string;
 const printingIds: string[] = [];
 const cardIds: string[] = [];
 const createdOrders: string[] = [];
@@ -84,7 +83,7 @@ beforeAll(async () => {
     1,
   ));
   ({ stockId: mtgKeptStockId } = await makeCard("mtg", mtgKeptExt, 2));
-  ({ stockId: pokeStockId, printingId: pokePrintingId } = await makeCard(
+  ({ stockId: pokeStockId } = await makeCard(
     "pokemon",
     pokeExt,
     4,
@@ -92,6 +91,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  for (const id of printingIds) {
+    await db.delete(stockMovements).where(eq(stockMovements.printingId, id));
+  }
   for (const id of createdOrders) {
     await db.delete(orderItems).where(eq(orderItems.orderId, id));
     await db.delete(orders).where(eq(orders.id, id));
@@ -185,58 +187,6 @@ describe("applyDelverImport (replace)", () => {
     // Neither zeroed nor swept up by the cleanup delete.
     expect(poke).not.toBeNull();
     expect(poke?.quantity).toBe(before);
-  });
-});
-
-describe("pending Delver report", () => {
-  it("lists the sold MTG card and ignores sold Pokemon", async () => {
-    // Sell a Pokemon card too; Delver never tracks it, so it must not appear.
-    // Pokemon is not on sale by default, and orders refuse stock from a
-    // disabled game, so enable it just long enough to make the sale.
-    await db.update(games).set({ enabled: true }).where(eq(games.id, "pokemon"));
-    let r;
-    try {
-      r = await createOrder({
-        email: "poke@test.com",
-        phone: "099111222",
-        items: [poolItem(pokePrintingId, 1)],
-      });
-    } finally {
-      await db.update(games).set({ enabled: false }).where(eq(games.id, "pokemon"));
-    }
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
-    createdOrders.push(r.orderId);
-    await confirmOrder(r.confirmationToken);
-    await completeOrder(r.orderId);
-
-    const lines = await pendingDelverLines();
-    const names = lines.map((l) => l.card_name);
-    // The MTG card sold in the FK test above is still unreconciled.
-    expect(names).toContain(`Import Test ${mtgSoldExt.slice(0, 8)}`);
-    expect(names).not.toContain(`Import Test ${pokeExt.slice(0, 8)}`);
-  });
-
-  it("counts only Delver-tracked copies", async () => {
-    const copies = await pendingDelverCopies();
-    const lines = await pendingDelverLines();
-    expect(copies).toBe(lines.reduce((n, l) => n + l.qty, 0));
-  });
-
-  it("drops an order from the report once marked removed", async () => {
-    const before = await pendingDelverCopies();
-    expect(before).toBeGreaterThan(0);
-    await db
-      .update(orders)
-      .set({ delverRemovedAt: new Date() })
-      .where(eq(orders.status, "completed"));
-    expect(await pendingDelverCopies()).toBe(0);
-    // Undo, so the suite leaves no surprises for a re-run.
-    await db
-      .update(orders)
-      .set({ delverRemovedAt: null })
-      .where(eq(orders.status, "completed"));
-    expect(await pendingDelverCopies()).toBe(before);
   });
 });
 
