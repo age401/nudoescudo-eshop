@@ -42,7 +42,14 @@ export type DelverRow = {
 
 export type ImportPreview = {
   rows: DelverRow[];
-  matched: { row: DelverRow; printingId: string; cardName: string; setName: string }[];
+  matched: {
+    row: DelverRow;
+    printingId: string;
+    cardName: string;
+    setName: string;
+    setCode: string;
+    collectorNumber: string;
+  }[];
   unmatched: DelverRow[];
 };
 
@@ -160,9 +167,13 @@ export async function previewDelverImport(text: string): Promise<ImportPreview> 
         .select({
           printingId: printings.id,
           externalId: printings.externalId,
+          cardName: cards.name,
           setName: printings.setName,
+          setCode: printings.setCode,
+          collectorNumber: printings.collectorNumber,
         })
         .from(printings)
+        .innerJoin(cards, sql`${cards.id} = ${printings.cardId}`)
         .where(sql`${printings.externalId} in ${ids}`)
     : [];
   const byExternal = new Map(found.map((f) => [f.externalId, f]));
@@ -175,8 +186,10 @@ export async function previewDelverImport(text: string): Promise<ImportPreview> 
       matched.push({
         row,
         printingId: hit.printingId,
-        cardName: row.name ?? "",
+        cardName: hit.cardName,
         setName: hit.setName,
+        setCode: hit.setCode,
+        collectorNumber: hit.collectorNumber,
       });
     } else {
       unmatched.push(row);

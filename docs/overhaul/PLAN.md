@@ -65,10 +65,10 @@ browser preview, commit, Status table updated.
 - [ ] Admin nav: add "Venta en tienda" (P4) and "Respaldos" (P5) as they land. Stock now has sub-tabs Inventario · Importar de Delver · Movimientos (`stock/layout.tsx`).
 
 ### P3 — Delver import rework
-- [ ] `/admin/stock/importar`: "Agregar cartas" as the default flow — upload → preview table (card, set, variant, qty, current stock → new stock; unmatched rows listed with reason) → Confirm.
-- [ ] Import history with per-import detail and **Deshacer** (reverses the import's movements; refuses lines that would go below reserved, reports them).
-- [ ] "Reemplazar todo el stock" in a separate danger section → preview → dedicated confirmation screen (D4) with impact numbers, snapshot download, typed phrase, checkbox; server validation.
-- [ ] CLI `scripts/import-delver.ts` updated to the same library (replace needs `--i-understand` flag).
+- [x] `/admin/stock/importar`: "Agregar cartas" as the default flow — upload → preview table (card, set, variant, qty, current stock → new stock; unmatched rows listed with reason) → Confirm.
+- [x] Import history with per-import detail and **Deshacer** (reverses the import's movements; refuses lines that would go below reserved, reports them).
+- [x] "Reemplazar todo el stock" in a separate danger section → preview → dedicated confirmation screen (D4) with impact numbers, snapshot download, typed phrase, checkbox; server validation.
+- [x] CLI `scripts/import-delver.ts` updated to the same library (replace needs `--i-understand` flag).
 
 ### P4 — In-store sale ("Venta en tienda")
 - [ ] `src/lib/in-store.ts`: parse (reuse `parseDelverCsv`), match (D6), suggestions, availability incl. reservations (D7). Unit/integration tests incl. the Serra Angel case.
@@ -95,7 +95,7 @@ browser preview, commit, Status table updated.
 | P0 | done | |
 | P1 | done | migration 0006; `src/lib/stock.ts`; fixtures in `src/test/fixtures.ts`. |
 | P2 | done | `src/lib/stock-query.ts` (filters shared with export), `components/admin/StockRow.tsx`, `stock/actions.ts`. Old import UI moved as-is to `/admin/stock/importar` until P3. |
-| P3 | not started | |
+| P3 | done | `src/lib/stock-import.ts` (+tests); UI in `stock/importar/` + `components/admin/ImportForms.tsx`. Replace phrase: `REEMPLAZAR TODO EL STOCK` (paste blocked, value uppercased). |
 | P4 | not started | |
 | P5 | not started | off-site target pending user decision |
 | P6 | not started | |
@@ -108,3 +108,4 @@ browser preview, commit, Status table updated.
 - 2026-09-27 — Explored codebase, wrote this plan, P0 done.
 - 2026-09-27 — P1 done. Notes: replace-import now clamps rows to their reserved count (was: dropped to 0, breaking `quantity >= reserved`). `completeOrder`/`cancelOrder` lock the order row; `completeOrder` is idempotent. Dev tip: `npx tsx .local/clean-tests.mts` wipes leftover test fixtures if a test run dies before teardown.
 - 2026-09-27 — P2 done, verified in browser (edit/save/history/stale guard/export/redirect). Dev tip: `.local/admin-cookie.mts` mints an admin session cookie for the preview browser (set `ne_admin` via document.cookie).
+- 2026-09-27 — P3 done, verified in browser (add preview→apply, replace impact→guard→apply→undo restored stock). Dev tip: the built-in browser has no file upload; inject a `File` via `DataTransfer` into the input and `requestSubmit()`.

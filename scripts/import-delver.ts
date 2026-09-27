@@ -1,7 +1,9 @@
 /**
  * Import a Delver Lens CSV export into stock:
  *   npm run import:delver -- path/to/export.csv            (merge: adds)
- *   npm run import:delver -- path/to/export.csv --replace  (replaces stock)
+ *   npm run import:delver -- path/to/export.csv --replace --i-understand
+ *                                          (replaces ALL Magic stock; prefer the
+ *                                           admin panel, which shows the impact)
  *   npm run import:delver -- path/to/export.csv --dry-run  (preview only)
  */
 import fs from "node:fs";
@@ -13,7 +15,7 @@ async function main() {
   const args = process.argv.slice(2);
   const file = args.find((a) => !a.startsWith("--"));
   if (!file) {
-    console.error("Uso: npm run import:delver -- <archivo.csv> [--replace] [--dry-run]");
+    console.error("Uso: npm run import:delver -- <archivo.csv> [--replace --i-understand] [--dry-run]");
     process.exitCode = 1;
     return;
   }
@@ -30,6 +32,13 @@ async function main() {
   }
 
   const mode = args.includes("--replace") ? "replace" : "merge";
+  if (mode === "replace" && !args.includes("--i-understand")) {
+    console.error(
+      "--replace pisa TODO el stock de Magic con el archivo. Usá el panel (Stock → Importar) para ver el impacto antes, o agregá --i-understand.",
+    );
+    process.exitCode = 1;
+    return;
+  }
   const result = await applyDelverImport(text, mode);
   console.log(result);
 }

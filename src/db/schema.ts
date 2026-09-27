@@ -185,7 +185,7 @@ export const stockImports = pgTable(
     status: stockImportStatusEnum("status").notNull().default("previewed"),
     filename: text("filename"),
     /** Parsed + matched rows (see src/lib/stock-import.ts). */
-    rows: jsonb("rows").$type<unknown[]>().notNull(),
+    rows: jsonb("rows").$type<unknown>().notNull(),
     /** Counts shown in the history list (matched, unmatched, copies, ...). */
     summary: jsonb("summary").$type<Record<string, unknown>>().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
