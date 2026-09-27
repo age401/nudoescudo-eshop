@@ -1,13 +1,13 @@
-name: Deploy
+name: Deploy staging
 
 on:
   push:
-    branches: [master]
+    branches: [staging]
 
 # One deploy at a time per environment; the server also serialises the two
 # environments against each other (1 CPU, 2GB RAM).
 concurrency:
-  group: deploy-production
+  group: deploy-staging
   cancel-in-progress: false
 
 jobs:
@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: SSH deploy
         env:
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY_STAGING }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
@@ -27,6 +27,6 @@ jobs:
           ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
           # The server's authorized_keys pins this key to a single forced
-          # command (git pull + docker compose up -d --build), so whatever
+          # command (the staging deploy script), so whatever
           # we "ask" for here is ignored server-side — this just triggers it.
           ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" true

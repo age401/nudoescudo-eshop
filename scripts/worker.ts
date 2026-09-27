@@ -8,6 +8,10 @@
  *  - daily 07:30  : Card Kingdom prices (MTGJSON publishes overnight US time)
  *  - weekly Sun 06:00 : Scryfall catalog refresh (new sets/printings)
  *  - weekly Sun 05:00 : MTGJSON identifier mapping refresh
+ *
+ * WORKER_HEAVY_SYNCS=off skips the two weekly jobs (they load ~1GB of JSON).
+ * Staging sets it: it shares a 2GB server with production, and two of them at
+ * once would run it out of memory. Run them by hand there when needed.
  */
 import cron from "node-cron";
 import { loadEnv } from "../src/lib/env";
@@ -37,8 +41,12 @@ async function main() {
   cron.schedule("*/15 * * * *", () => safely("order_expiry", expireStaleOrders));
   cron.schedule("10 7 * * *", () => safely("fx_rate", syncFxRate));
   cron.schedule("30 7 * * *", () => safely("ck_prices", syncCardKingdomPrices));
-  cron.schedule("0 5 * * 0", () => safely("mtgjson_identifiers", syncMtgjsonIdentifiers));
-  cron.schedule("0 6 * * 0", () => safely("scryfall_catalog", () => syncScryfallCatalog()));
+  if (process.env.WORKER_HEAVY_SYNCS !== "off") {
+    cron.schedule("0 5 * * 0", () => safely("mtgjson_identifiers", syncMtgjsonIdentifiers));
+    cron.schedule("0 6 * * 0", () => safely("scryfall_catalog", () => syncScryfallCatalog()));
+  } else {
+    console.log("[worker] WORKER_HEAVY_SYNCS=off: weekly catalog/identifier syncs not scheduled");
+  }
   // Pokemon is not on sale yet (see scripts/seed.ts), so its catalog and
   // price syncs are not scheduled. Re-add them when the game launches:
   //   cron.schedule("50 7 * * *", () => safely("pokemon_prices", syncPokemonPrices));
