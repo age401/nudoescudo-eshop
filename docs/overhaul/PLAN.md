@@ -55,14 +55,14 @@ browser preview, commit, Status table updated.
 - [x] Tests for the helper + existing tests still green.
 
 ### P2 — Stock management UI
-- [ ] `/admin/stock` rewrite: filters (text, game, set, finish, language, condition, availability: con stock / sin stock / reservadas), sort (name, set, qty, price, updated), pagination (no 500 cap), result count.
-- [ ] Row edit (client component): quantity with +/− and direct value, price override, optional note; D2 concurrency error shown inline; toast/confirmation feedback.
-- [ ] Row history (movements for that stock row) in an expandable panel.
-- [ ] Delete row when qty 0, not reserved, not referenced by orders.
-- [ ] `/admin/stock/movimientos`: global ledger, filter by reason/date, links to orders/imports.
-- [ ] CSV export (`/api/admin/stock/export`) honoring current filters (D11).
-- [ ] Retire `/admin/vendidas` (D9): nav, dashboard card, warnings, redirect.
-- [ ] Admin nav reorganised: Inicio · Pedidos · Venta en tienda · Stock · Importar · Respaldos · Configuración.
+- [x] `/admin/stock` rewrite: filters (text, game, set, finish, language, condition, availability: con stock / sin stock / reservadas), sort (name, set, qty, price, updated), pagination (no 500 cap), result count.
+- [x] Row edit (client component): quantity with +/− and direct value, price override, optional note; D2 concurrency error shown inline; toast/confirmation feedback.
+- [x] Row history (movements for that stock row) in an expandable panel.
+- [x] Delete row when qty 0, not reserved, not referenced by orders.
+- [x] `/admin/stock/movimientos`: global ledger, filter by reason/date, links to orders/imports.
+- [x] CSV export (`/api/admin/stock/export`) honoring current filters (D11).
+- [x] Retire `/admin/vendidas` (D9): nav, dashboard card, warnings, redirect.
+- [ ] Admin nav: add "Venta en tienda" (P4) and "Respaldos" (P5) as they land. Stock now has sub-tabs Inventario · Importar de Delver · Movimientos (`stock/layout.tsx`).
 
 ### P3 — Delver import rework
 - [ ] `/admin/stock/importar`: "Agregar cartas" as the default flow — upload → preview table (card, set, variant, qty, current stock → new stock; unmatched rows listed with reason) → Confirm.
@@ -93,8 +93,8 @@ browser preview, commit, Status table updated.
 | Phase | State | Notes |
 |-------|-------|-------|
 | P0 | done | |
-| P1 | done | migration 0006; `src/lib/stock.ts`; fixtures in `src/test/fixtures.ts`. Interim: a stale/below-reserved edit on the old stock page throws to the error page until P2 replaces it. |
-| P2 | not started | |
+| P1 | done | migration 0006; `src/lib/stock.ts`; fixtures in `src/test/fixtures.ts`. |
+| P2 | done | `src/lib/stock-query.ts` (filters shared with export), `components/admin/StockRow.tsx`, `stock/actions.ts`. Old import UI moved as-is to `/admin/stock/importar` until P3. |
 | P3 | not started | |
 | P4 | not started | |
 | P5 | not started | off-site target pending user decision |
@@ -107,3 +107,4 @@ browser preview, commit, Status table updated.
 ## Session log
 - 2026-09-27 — Explored codebase, wrote this plan, P0 done.
 - 2026-09-27 — P1 done. Notes: replace-import now clamps rows to their reserved count (was: dropped to 0, breaking `quantity >= reserved`). `completeOrder`/`cancelOrder` lock the order row; `completeOrder` is idempotent. Dev tip: `npx tsx .local/clean-tests.mts` wipes leftover test fixtures if a test run dies before teardown.
+- 2026-09-27 — P2 done, verified in browser (edit/save/history/stale guard/export/redirect). Dev tip: `.local/admin-cookie.mts` mints an admin session cookie for the preview browser (set `ne_admin` via document.cookie).

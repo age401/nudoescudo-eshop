@@ -20,7 +20,6 @@ export default async function AdminLayout({
     ["/admin", M.admin.nav.dashboard],
     ["/admin/pedidos", M.admin.nav.orders],
     ["/admin/stock", M.admin.nav.stock],
-    ["/admin/vendidas", M.admin.nav.delver],
     ["/admin/configuracion", M.admin.nav.settings],
   ] as const;
 
