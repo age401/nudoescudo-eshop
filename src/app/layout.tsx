@@ -6,6 +6,7 @@ import { M } from "@/lib/messages";
 import { CartProvider } from "@/components/CartProvider";
 import { CartButton } from "@/components/CartButton";
 import { SearchBar } from "@/components/SearchBar";
+import { isStaging } from "@/lib/site-env";
 
 const fraunces = Fraunces({
   variable: "--font-fraunces",
@@ -28,6 +29,8 @@ export const metadata: Metadata = {
   title: `${M.storeName} — ${M.tagline}`,
   description:
     "Tienda de cartas sueltas de Magic: The Gathering en Uruguay. Buscá, armá tu pedido y retiralo en la tienda.",
+  // Keep the staging copy out of search results.
+  ...(isStaging && { robots: { index: false, follow: false } }),
 };
 
 function KnotMark() {
@@ -63,6 +66,11 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <CartProvider>
+          {isStaging && (
+            <div className="bg-danger px-4 py-1.5 text-center text-sm font-medium text-paper">
+              Entorno de pruebas — los pedidos no son reales
+            </div>
+          )}
           <header className="bg-felt text-paper shadow-pop sticky top-0 z-40">
             <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
               <Link

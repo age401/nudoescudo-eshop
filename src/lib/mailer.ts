@@ -5,6 +5,7 @@
  *  - 'console' : log to stdout (tests / last resort)
  */
 import { env, loadEnv } from "@/lib/env";
+import { isStaging } from "@/lib/site-env";
 
 loadEnv();
 
@@ -26,8 +27,13 @@ function applyRedirect(mail: Mail): Mail {
   };
 }
 
+/** Staging emails are real Resend sends, so make them obvious in any inbox. */
+function applyStagingPrefix(mail: Mail): Mail {
+  return isStaging ? { ...mail, subject: `[STAGING] ${mail.subject}` } : mail;
+}
+
 export async function sendMail(input: Mail): Promise<void> {
-  const mail = applyRedirect(input);
+  const mail = applyStagingPrefix(applyRedirect(input));
   const mode = env("EMAIL_MODE", "console");
   const from = env("EMAIL_FROM", "NudoEscudo <no-reply@localhost>");
 

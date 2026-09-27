@@ -61,6 +61,42 @@ docker compose up -d --build
 - Primera vez: `docker compose exec app npm run sync -- catalog` (y `prices`,
   `fx`, `pokemon-catalog`) o usar los botones de "Ejecutar ahora" en `/admin`.
 
+## Staging (entorno de pruebas)
+
+Copia completa de la tienda en **https://staging.tcg.nudoescudo.com**, en el
+mismo servidor que producción pero con su propia base de datos, carpeta
+(`/home/nudoescudo/htdocs/staging.tcg.nudoescudo.com`) y puerto (3002). Muestra
+un aviso rojo arriba, no se indexa en buscadores y sus emails llevan
+`[STAGING]` en el asunto.
+
+Flujo de trabajo:
+
+```text
+feature/xyz ──PR──▶ staging ──PR──▶ master
+                    │                │
+                    ▼                ▼
+      staging.tcg.nudoescudo.com   tcg.nudoescudo.com
+```
+
+1. Rama nueva desde `staging`: `git switch staging && git pull && git switch -c feature/xyz`.
+2. PR de `feature/xyz` hacia **`staging`**. Al mergear, GitHub Actions despliega staging.
+3. Probar en staging (vos y el cliente).
+4. Cuando está aprobado: PR de `staging` hacia **`master`** → producción.
+
+Diferencias de configuración (`.env` de staging): `SITE_ENV=staging`,
+`WORKER_HEAVY_SYNCS=off` (las sincronizaciones semanales de ~1GB no se
+programan, porque el servidor tiene 2GB; se corren a mano desde `/admin` o
+`npm run sync`), `APP_PORT=3002` y contraseñas/secretos propios.
+
+Copiar los datos de producción a staging (catálogo, precios, stock y
+configuración; **sin pedidos**, que tienen datos de clientes):
+
+```bash
+sudo /usr/local/sbin/nudoescudo-staging-refresh-db.sh
+```
+
+Los scripts del servidor están versionados en `deploy/`.
+
 ## Estructura
 
 - `src/app` — storefront + panel admin (App Router, server components).

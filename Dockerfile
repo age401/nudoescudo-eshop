@@ -8,6 +8,9 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
+# "staging" on the test copy (see src/lib/site-env.ts); empty in production.
+ARG SITE_ENV=
+ENV SITE_ENV=$SITE_ENV
 # Dummy DATABASE_URL satisfies env validation during build; runtime value comes from docker-compose.
 ENV DATABASE_URL=postgres://build:build@localhost:5432/build
 RUN npm run build

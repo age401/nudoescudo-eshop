@@ -17,7 +17,10 @@ services:
       retries: 10
 
   app:
-    build: .
+    build:
+      context: .
+      args:
+        SITE_ENV: ${SITE_ENV:-}
     restart: unless-stopped
     env_file: .env
     environment:
@@ -35,7 +38,10 @@ services:
       - "127.0.0.1:${APP_PORT:-3000}:3000"
 
   worker:
-    build: .
+    build:
+      context: .
+      args:
+        SITE_ENV: ${SITE_ENV:-}
     restart: unless-stopped
     env_file: .env
     environment:
