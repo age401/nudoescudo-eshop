@@ -58,6 +58,7 @@ export function InStoreSale() {
   const [resolved, setResolved] = useState<Record<string, Resolution>>({});
   const [scanned, setScanned] = useState(0);
   const [customer, setCustomer] = useState("");
+  const [phone, setPhone] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [flagged, setFlagged] = useState<Set<string>>(new Set());
@@ -127,6 +128,7 @@ export function InStoreSale() {
     setProblems([]);
     setResolved({});
     setCustomer("");
+    setPhone("");
     setNote("");
     setError(null);
     setFlagged(new Set());
@@ -189,6 +191,7 @@ export function InStoreSale() {
       const res = await confirmSaleAction({
         requestId,
         customerName: customer || undefined,
+        phone: phone || undefined,
         note: note || undefined,
         lines: lines.map((l) => ({
           stockId: l.candidate.stockId,
@@ -388,7 +391,7 @@ export function InStoreSale() {
         <ManualSearch onAdd={addManual} freeFor={freeFor} />
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2">
+      <section className="grid gap-3 sm:grid-cols-3">
         <label className="block text-sm">
           <span className="font-medium">{T.customer}</span>
           <input
@@ -396,6 +399,17 @@ export function InStoreSale() {
             value={customer}
             onChange={(e) => setCustomer(e.target.value)}
             maxLength={200}
+            className="mt-1 block w-full rounded-lg border border-ink/15 bg-white px-3 py-2"
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="font-medium">{T.phone}</span>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            maxLength={40}
+            autoComplete="off"
             className="mt-1 block w-full rounded-lg border border-ink/15 bg-white px-3 py-2"
           />
         </label>

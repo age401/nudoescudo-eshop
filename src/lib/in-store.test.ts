@@ -105,6 +105,7 @@ describe("confirmSale", () => {
     const input = {
       requestId,
       customerName: "Mostrador",
+      phone: " 099 123 456 ",
       lines: [{ stockId: fourthStockId, quantity: 1, unitPriceUsd: 1.5 }],
     };
     const res = await confirmSale(input);
@@ -114,7 +115,7 @@ describe("confirmSale", () => {
     expect(again).toEqual(res);
 
     const [order] = await db.select().from(orders).where(eq(orders.id, res.orderId));
-    expect(order).toMatchObject({ channel: "in_store", status: "completed", totalUsd: "1.50", email: null });
+    expect(order).toMatchObject({ channel: "in_store", status: "completed", totalUsd: "1.50", email: null, phone: "099 123 456" });
     expect(await qty(fourthStockId)).toBe(0);
     const moves = await db.select().from(stockMovements).where(eq(stockMovements.orderId, res.orderId));
     expect(moves.map((m) => [m.reason, m.delta])).toEqual([["in_store_sale", -1]]);

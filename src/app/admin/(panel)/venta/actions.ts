@@ -37,6 +37,7 @@ export async function searchSaleCandidatesAction(q: string): Promise<Candidate[]
 const ConfirmInput = z.object({
   requestId: z.string().uuid(),
   customerName: z.string().max(200).optional(),
+  phone: z.string().max(40).optional(),
   note: z.string().max(2000).optional(),
   lines: z
     .array(

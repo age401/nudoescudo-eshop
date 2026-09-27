@@ -288,6 +288,7 @@ export async function confirmSale(args: {
   requestId: string;
   lines: SaleInputLine[];
   customerName?: string;
+  phone?: string;
   note?: string;
 }): Promise<ConfirmSaleResult> {
   const existing = await db.query.orders.findFirst({
@@ -359,6 +360,7 @@ export async function confirmSale(args: {
         status: "completed",
         email: null,
         customerName: args.customerName?.trim() || null,
+        phone: args.phone?.trim() || null,
         confirmationToken: `in_store:${args.requestId}`,
         fxRateUyuPerUsd: fxRate != null ? fxRate.toFixed(4) : null,
         priceMultiplier: multiplier.toFixed(3),

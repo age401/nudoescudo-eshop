@@ -85,7 +85,7 @@ browser preview, commit, Status table updated.
 - [x] `deploy/backup-restore-test.sh`: restore newest dump into staging DB (adapts `staging-refresh-db.sh`), documented monthly check.
 - [x] Runbook updated (`docs/runbook-mantenimiento.md`).
 
-- [ ] **Server setup (user, once):** create the B2 bucket + key, `rclone config`, install the two scripts and the cron line — steps in `docs/runbook-mantenimiento.md`. Run the restore test once after the first deploy.
+- [ ] **On hold (user):** create the B2 bucket + key, `rclone config`, install the two scripts and the cron line — steps in `docs/runbook-mantenimiento.md`. Run the restore test once after the first deploy.
 ### P6 — Docs, QA, release
 - [x] `docs/guia-operacion.md` rewritten for the new workflows (Spanish, operator-facing); README updated.
 - [x] `deploy/staging-refresh-db.sh`: skip `stock_movements` data (its rows reference the orders that aren't copied). **Re-install the script on the server** (`/usr/local/sbin/nudoescudo-staging-refresh-db.sh`).
@@ -106,8 +106,7 @@ browser preview, commit, Status table updated.
 | P6 | in progress | Docs + build done. Remaining: merge to `staging`, QA on staging with a real Delver file, then PR to `master`. |
 
 ## Open questions for the user
-- Off-site backup destination: recommended Backblaze B2 (script is rclone-based, so R2/Drive also work). Needs the user to create the account + run the setup.
-- In-store sales: optional customer name + note implemented; say if phone is wanted too.
+- Off-site backups: **on hold by user decision (2026-09-27).** Code/scripts are ready; the Respaldos page shows "No configurada" until it is set up.
 
 ## Session log
 - 2026-09-27 — Explored codebase, wrote this plan, P0 done.
@@ -117,3 +116,4 @@ browser preview, commit, Status table updated.
 - 2026-09-27 — P4 done, verified in browser with real catalog printings (wrong-edition suggestion, skip, price guard, confirm, void).
 - 2026-09-27 — P5 done (code). Checked prodrigestivill image: default POSTGRES_EXTRA_OPTS is now `-Z1` (whole DB) — pinned it explicitly since old versions defaulted to `--schema=public`, which isn't restorable.
 - 2026-09-27 — P6: docs, staging-refresh fix, build clean. Branch ready to merge into `staging` (awaiting user go-ahead to push, since that deploys).
+- 2026-09-27 — User: B2 on hold; in-store sales now record an optional phone; web checkout requires the customer name (form + API).

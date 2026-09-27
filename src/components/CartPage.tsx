@@ -31,7 +31,7 @@ export function CartPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email,
-          customerName: name || undefined,
+          customerName: name.trim(),
           phone,
           items: items.map((i) => ({
             printingId: i.printingId,
@@ -224,9 +224,13 @@ export function CartPage() {
               </span>
             </label>
             <label className="block">
-              <span className="text-sm font-medium">{M.checkout.name}</span>
+              <span className="text-sm font-medium">{M.checkout.name} *</span>
               <input
                 type="text"
+                required
+                minLength={2}
+                maxLength={120}
+                autoComplete="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-ink/15 bg-white px-3 py-2"
