@@ -4,7 +4,11 @@ import zlib from "node:zlib";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 
-export const CACHE_DIR = path.resolve(process.env.CACHE_DIR ?? ".local/cache");
+// Runtime path, not a build dependency: the ignore hint stops Turbopack's
+// file tracing (NFT) from tracing the whole project.
+export const CACHE_DIR = path.resolve(
+  /*turbopackIgnore: true*/ process.env.CACHE_DIR ?? ".local/cache",
+);
 
 const USER_AGENT = "NudoEscudoShop/1.0 (small card shop in Uruguay)";
 
@@ -26,11 +30,11 @@ export async function downloadToCache(
   fileName: string,
   maxAgeHours: number,
 ): Promise<string> {
-  fs.mkdirSync(CACHE_DIR, { recursive: true });
-  const dest = path.join(CACHE_DIR, fileName);
+  fs.mkdirSync(/*turbopackIgnore: true*/ CACHE_DIR, { recursive: true });
+  const dest = path.join(/*turbopackIgnore: true*/ CACHE_DIR, fileName);
 
-  if (fs.existsSync(dest)) {
-    const ageMs = Date.now() - fs.statSync(dest).mtimeMs;
+  if (fs.existsSync(/*turbopackIgnore: true*/ dest)) {
+    const ageMs = Date.now() - fs.statSync(/*turbopackIgnore: true*/ dest).mtimeMs;
     if (ageMs < maxAgeHours * 3600_000) return dest;
   }
 
@@ -43,10 +47,10 @@ export async function downloadToCache(
   const tmp = `${dest}.download`;
   const source = Readable.fromWeb(res.body as import("node:stream/web").ReadableStream);
   if (url.endsWith(".gz")) {
-    await pipeline(source, zlib.createGunzip(), fs.createWriteStream(tmp));
+    await pipeline(source, zlib.createGunzip(), fs.createWriteStream(/*turbopackIgnore: true*/ tmp));
   } else {
-    await pipeline(source, fs.createWriteStream(tmp));
+    await pipeline(source, fs.createWriteStream(/*turbopackIgnore: true*/ tmp));
   }
-  fs.renameSync(tmp, dest);
+  fs.renameSync(/*turbopackIgnore: true*/ tmp, dest);
   return dest;
 }

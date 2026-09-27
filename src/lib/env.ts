@@ -11,10 +11,12 @@ export function loadEnv(): void {
   if (loaded) return;
   loaded = true;
   for (const file of [".env.local", ".env"]) {
-    const p = path.resolve(process.cwd(), file);
-    if (!fs.existsSync(p)) continue;
+    // Runtime-only lookups: the ignore hints stop Turbopack's file tracing
+    // (NFT) from treating cwd as a dependency and tracing the whole project.
+    const p = path.resolve(/*turbopackIgnore: true*/ process.cwd(), file);
+    if (!fs.existsSync(/*turbopackIgnore: true*/ p)) continue;
     try {
-      process.loadEnvFile(p);
+      process.loadEnvFile(/*turbopackIgnore: true*/ p);
     } catch {
       // ignore malformed lines / missing file races
     }
