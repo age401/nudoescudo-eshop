@@ -104,6 +104,8 @@ export class Fixtures {
       await db.delete(orders).where(inArray(orders.id, this.orderIds));
     }
     if (this.importIds.length) {
+      // Replace imports also touch MTG stock outside the fixtures.
+      await db.delete(stockMovements).where(inArray(stockMovements.importId, this.importIds));
       await db.delete(stockImports).where(inArray(stockImports.id, this.importIds));
     }
     for (const id of this.printingIds) {
