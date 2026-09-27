@@ -1,0 +1,108 @@
+# Stock overhaul — multi-session plan
+
+Living document. **Every session working on this overhaul starts by reading
+this file and ends by updating the Status table and the Session log.**
+
+Branch: `feat/stock-overhaul` (cut from `staging`). Merge into `staging` at the
+end of each phase that leaves the app in a working state — pushing `staging`
+auto-deploys to staging.tcg.nudoescudo.com (ask the user before pushing).
+
+## Goal (from the user, 2026-09-27)
+
+1. Stock is managed **entirely on the website** — the admin panel must be good
+   enough to maintain it professionally.
+2. Delver Lens is only used for two things:
+   - **Adding new cards** to stock (merge import). "Replace all stock" stays,
+     as a separate option behind a real, non-trivial confirmation.
+   - **In-store orders**: scan what a customer brings to the counter, upload
+     the file, review matches (with suggestions when Delver picked the wrong
+     edition), confirm → stock is decremented and a sale is recorded.
+3. Database backups: recommend and implement the best path. Catalog/stock
+   downloadable as CSV.
+4. Remove the card-condition leftover from emails.
+
+## Key design decisions
+
+| # | Decision | Why |
+|---|----------|-----|
+| D1 | Add a **`stock_movements` ledger**; every stock change goes through one helper (`src/lib/stock.ts`) that updates the row *and* writes a movement (delta, reason, ref). | Audit trail, per-card history, undo of imports, and the only sane way to "maintain stock professionally". |
+| D2 | Manual edits send the **quantity the admin saw**; the server rejects the save if it changed meanwhile (optimistic concurrency) and never lets quantity drop below `reserved`. | Today an absolute `SET quantity=` can silently overwrite a sale that happened while the page was open. |
+| D3 | Imports are two-step: upload → a `stock_imports` row stores the **parsed rows** (status `previewed`) → confirm applies exactly that. | What was previewed is what gets applied; no re-upload; gives an import history with undo. |
+| D4 | Replace mode confirmation = separate "Zona peligrosa" flow: impact summary (copies/rows that disappear, web-side edits lost, reservations touched) + **type the exact phrase `REEMPLAZAR TODO EL STOCK`** + acknowledge checkbox; server re-checks the phrase. A pre-replace stock snapshot is downloadable and the import is undoable via the ledger. | User asked for "a measure that ensures the user is really willing", not a Continue button. |
+| D5 | `orders.channel` enum `web` \| `in_store`. In-store orders are created directly as `completed`; `email` and `confirmation_token` become nullable. | Reuses the orders list/detail/receipt; sales reporting stays in one place. |
+| D6 | In-store matching: exact printing+finish(+language) against available stock; else **suggestions** = in-stock copies of the *same card* (oracle id) in other printings/finishes, falling back to normalized name when the Scryfall id isn't in our catalog. Ranked: same finish+lang > same finish > other. Admin ticks a suggestion, picks the concrete variant, or skips the line. | Exactly the "Unlimited vs 4th Edition Serra Angel" case. |
+| D7 | In-store sale **cannot take copies reserved by web orders**; the review table shows which order holds them (link) so the admin can resolve it. | Keeps `quantity >= reserved` invariant; overriding silently would break a customer's confirmed order. |
+| D8 | In-store prices default to the web price; the admin can edit the unit price per line and add a note/customer name before confirming. | Counter sales often get a rounded price/discount. |
+| D9 | Retire "Vendidas — quitar de Delver" (`/admin/vendidas`, dashboard card, import warnings). Route redirects to the new movements page. `orders.delver_removed_at` is left in place (unused) — dropping it is optional cleanup. | Delver is no longer the source of truth, so there is nothing to reconcile. |
+| D10 | Backups: keep the existing nightly `pg_dump` container; **add off-site copies** (rclone → Backblaze B2 or Cloudflare R2, pending user choice), a restore-test script (restore latest dump into staging), and an admin **Respaldos** page (backups dir mounted read-only into the app) with download + freshness warning on the dashboard. | Current dumps live on the same VPS as the DB — one disk/provider failure loses both. |
+| D11 | Stock CSV export uses **import-compatible headers** (Scryfall ID, Quantity, Foil, Condition, Language, Name…) plus price/reserved columns. | The export doubles as a portable stock backup that our own importer can read back. |
+
+## Phases
+
+Each phase ends with: typecheck + lint + `npm test` green, manual check in the
+browser preview, commit, Status table updated.
+
+### P0 — Plan + quick win
+- [x] This document.
+- [x] Remove condition from **all** emails (`src/lib/email-templates.ts`: drop `showCondition`).
+
+### P1 — Data foundation
+- [ ] Migration: `stock_movements` (id, stock_id FK, delta int, qty_after int, reason enum `import_add|import_replace|import_undo|manual_adjust|manual_add|web_order|in_store_sale|correction`, import_id?, order_id?, note, created_at). Index (stock_id, created_at), (created_at).
+- [ ] Migration: `stock_imports` (id, kind `add|replace`, status `previewed|applied|undone|discarded`, filename, rows jsonb, summary jsonb, created_at, applied_at, undone_at).
+- [ ] Migration: `order_channel` enum + `orders.channel` default `web`; `orders.email`, `orders.confirmation_token` nullable; `orders.note`/customer fields reuse existing.
+- [ ] `src/lib/stock.ts`: `applyStockDelta(tx, …)`, `setStockQuantity(tx, …, expected)`, `upsertStockAndAdd(tx, …)`; all writing movements.
+- [ ] Route existing writers through it: `delver-import.ts`, `orders.ts#completeOrder`, admin stock page action, `api/admin/stock`.
+- [ ] Tests for the helper + existing tests still green.
+
+### P2 — Stock management UI
+- [ ] `/admin/stock` rewrite: filters (text, game, set, finish, language, condition, availability: con stock / sin stock / reservadas), sort (name, set, qty, price, updated), pagination (no 500 cap), result count.
+- [ ] Row edit (client component): quantity with +/− and direct value, price override, optional note; D2 concurrency error shown inline; toast/confirmation feedback.
+- [ ] Row history (movements for that stock row) in an expandable panel.
+- [ ] Delete row when qty 0, not reserved, not referenced by orders.
+- [ ] `/admin/stock/movimientos`: global ledger, filter by reason/date, links to orders/imports.
+- [ ] CSV export (`/api/admin/stock/export`) honoring current filters (D11).
+- [ ] Retire `/admin/vendidas` (D9): nav, dashboard card, warnings, redirect.
+- [ ] Admin nav reorganised: Inicio · Pedidos · Venta en tienda · Stock · Importar · Respaldos · Configuración.
+
+### P3 — Delver import rework
+- [ ] `/admin/stock/importar`: "Agregar cartas" as the default flow — upload → preview table (card, set, variant, qty, current stock → new stock; unmatched rows listed with reason) → Confirm.
+- [ ] Import history with per-import detail and **Deshacer** (reverses the import's movements; refuses lines that would go below reserved, reports them).
+- [ ] "Reemplazar todo el stock" in a separate danger section → preview → dedicated confirmation screen (D4) with impact numbers, snapshot download, typed phrase, checkbox; server validation.
+- [ ] CLI `scripts/import-delver.ts` updated to the same library (replace needs `--i-understand` flag).
+
+### P4 — In-store sale ("Venta en tienda")
+- [ ] `src/lib/in-store.ts`: parse (reuse `parseDelverCsv`), match (D6), suggestions, availability incl. reservations (D7). Unit/integration tests incl. the Serra Angel case.
+- [ ] `/admin/venta`: upload → review table: ✔ matched lines (variant picker if several conditions/langs), ⚠ partially available, ✖ unmatched with suggestion radios / manual search (reuse printings search) / skip; editable unit price, customer name, note; live total.
+- [ ] Confirm server action: locks rows, re-validates, creates `in_store` completed order, decrements stock via ledger. Idempotency guard against double submit.
+- [ ] Receipt/detail page works for in-store orders (no email); orders list gets a channel filter + badge; dashboard shows today's in-store sales.
+
+### P5 — Backups & export
+- [ ] docker-compose: mount `./backups:/backups:ro` into `app`; `BACKUP_DIR` env.
+- [ ] `/admin/respaldos`: list dumps (date, size, daily/weekly/monthly), download (streamed, admin-only), freshness status; dashboard warning if newest > 36 h.
+- [ ] Off-site: `deploy/backup-offsite.sh` (rclone sync of `backups/` to the chosen bucket, run by cron after the dump) + setup docs. **Needs user decision + credentials.**
+- [ ] `deploy/backup-restore-test.sh`: restore newest dump into staging DB (adapts `staging-refresh-db.sh`), documented monthly check.
+- [ ] Runbook updated (`docs/runbook-mantenimiento.md`).
+
+### P6 — Docs, QA, release
+- [ ] `docs/guia-operacion.md` rewritten for the new workflows (Spanish, operator-facing).
+- [ ] Full manual QA on staging with a real Delver file (import add, replace w/ undo, in-store sale with a wrong edition).
+- [ ] PR `staging` → `master`.
+
+## Status
+
+| Phase | State | Notes |
+|-------|-------|-------|
+| P0 | done | |
+| P1 | not started | |
+| P2 | not started | |
+| P3 | not started | |
+| P4 | not started | |
+| P5 | not started | off-site target pending user decision |
+| P6 | not started | |
+
+## Open questions for the user
+- Off-site backup destination: Backblaze B2 (recommended, ~free at this size), Cloudflare R2, or Google Drive (via rclone)?
+- In-store sales: record the customer's name/phone optionally, or never?
+
+## Session log
+- 2026-09-27 — Explored codebase, wrote this plan, P0 done.
